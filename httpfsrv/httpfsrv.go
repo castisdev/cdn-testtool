@@ -143,7 +143,6 @@ var directory string
 var useReadAll bool
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
-	<-time.After(time.Second)
 	fpath := path.Join(directory, r.URL.Path)
 	f, fi, err := openfile(fpath, useDirectIO)
 	if err != nil {

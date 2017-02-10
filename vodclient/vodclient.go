@@ -76,7 +76,6 @@ func main() {
 			log.Fatalf("readed len is not %d (%d)", size, len(b))
 		}
 		log.Printf("%s ok", req.Header.Get("Range"))
-		<-time.After(time.Second * 3)
+		// <-time.After(time.Second * 3)
 	}
 }
-

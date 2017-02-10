@@ -2,17 +2,14 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
-
-	"fmt"
 	"os"
 	"path"
 	"syscall"
 
 	"strconv"
-
-	"time"
 
 	"github.com/castisdev/cdn/httputil"
 	"github.com/gorilla/mux"
@@ -35,60 +32,46 @@ func openfile(filepath string, useDirectio bool) (f *os.File, fi os.FileInfo, er
 	return
 }
 
-func readfile(f *os.File, useDirectio bool, offset, len int64) []byte {
+func readfile(f *os.File, useDirectio bool, offset, len int64) ([]byte, error) {
 	//fmt.Printf("readfile: %v, offset: %v, len: %v\n", filepath, offset, len)
 	var buf []byte
 	if useDirectio {
 		const alignSize = 4096
-		//beg := offset - alignSize
-		//if beg <= 0 {
-		//	beg = 0
-		//} else {
-		//	beg = int64(beg/alignSize) * int64(alignSize)
-		//}
-		beg := offset
+		beg := offset / alignSize * alignSize
 
 		o, err := f.Seek(beg, 0)
 		if err != nil {
-			fmt.Printf("error, %v\n", err)
-			return nil
+			return nil, err
 		}
 		if o != beg {
-			fmt.Printf("error, seek result(%v) != offset(%v)\n", o, beg)
-			return nil
+			return nil, fmt.Errorf("error, seek result(%v) != offset(%v)", o, beg)
 		}
 
-		sz := int((len+alignSize)/alignSize) * alignSize
-		if sz == int(int(len)+int(alignSize)) {
-			sz = int(len)
-		}
+		newLen := len + (offset - beg)
+		sz := (newLen-1)/alignSize*alignSize + alignSize
 		buf = make([]byte, sz)
 		//buf = directio.AlignedBlock(sz)
 		readed, err := f.Read(buf)
 		if err != nil {
-			fmt.Printf("error, %v\n", err)
-			return nil
+			return nil, fmt.Errorf("failed to readfile, directio[%v], offset[%d], len[%d], err[%v]", useDirectio, offset, len, err)
 		}
-		newlen := int(len)
-		if readed < newlen {
-			newlen = readed
+		if int64(readed) < len {
+			len = int64(readed)
 		}
-		buf = buf[:newlen]
+		buf = buf[(offset - beg) : (offset-beg)+len]
 	} else {
 		buf = make([]byte, len)
 		o, err := f.Seek(offset, 0)
 		if err != nil {
-			fmt.Printf("error, %v\n", err)
-			return nil
+			return nil, err
 		}
 		if o != offset {
-			fmt.Printf("error, seek result(%v) != offset(%v)\n", o, offset)
-			return nil
+
+			return nil, fmt.Errorf("error, seek result(%v) != offset(%v)", o, offset)
 		}
 
 		if _, err := f.Read(buf); err != nil {
-			fmt.Printf("error, %v\n", err)
-			return nil
+			return nil, err
 		}
 	}
 
@@ -105,7 +88,7 @@ func readfile(f *os.File, useDirectio bool, offset, len int64) []byte {
 	//if n != len {
 	//	return nil, fmt.Errorf("readed(%v) != expected(%v)", n, len)
 	//}
-	return buf
+	return buf, nil
 }
 
 //
@@ -143,10 +126,11 @@ var directory string
 var useReadAll bool
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
 	fpath := path.Join(directory, r.URL.Path)
 	f, fi, err := openfile(fpath, useDirectIO)
 	if err != nil {
-		fmt.Printf("error 1 :%v\n", err)
+		log.Printf("failed to open, %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -155,32 +139,32 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	if ra := r.Header.Get("Range"); len(ra) > 0 {
 		ras, err := httputil.ParseRange(ra, fi.Size())
 		if err != nil {
-			fmt.Printf("error 2 :%v\n", err)
+			log.Printf("failed to parse range, %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.Header().Set("Content-Range", ras[0].ContentRange(fi.Size()))
 		w.Header().Set("Content-Length", strconv.FormatInt(ras[0].Length, 10))
-		w.WriteHeader(206)
 
 		var b []byte
 		if useReadAll {
-			b = readfile(f, useDirectIO, 0, fi.Size())
+			b, err = readfile(f, useDirectIO, 0, fi.Size())
 			b = b[ras[0].Start : ras[0].Start+ras[0].Length]
 		} else {
-			b = readfile(f, useDirectIO, ras[0].Start, ras[0].Length)
+			b, err = readfile(f, useDirectIO, ras[0].Start, ras[0].Length)
 		}
-		if b == nil {
-			fmt.Printf("error 3 :%v\n", err)
+		if err != nil {
+			log.Printf("failed to readfile, %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		w.WriteHeader(206)
 		w.Write(b)
 	} else {
-		b := readfile(f, useDirectIO, 0, fi.Size())
-		if b == nil {
-			fmt.Printf("error 4 :%v\n", err)
+		b, err := readfile(f, useDirectIO, 0, fi.Size())
+		if err != nil {
+			log.Printf("failed to readfile, %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -193,6 +177,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleHead(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
 	fpath := path.Join(directory, r.URL.Path)
 	f, err := os.Stat(fpath)
 	if err != nil {

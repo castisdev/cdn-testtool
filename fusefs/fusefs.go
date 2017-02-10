@@ -17,6 +17,8 @@ import (
 var inode uint64
 var readDir string
 var useDirectio bool
+var useNoRead bool
+var contentSize int64
 
 func run(dir string, readahead int) error {
 	inode = 0
@@ -57,6 +59,7 @@ func (f *WebFS) Root() (fs.Node, error) {
 	return &Dir{name: f.mountdir, parent: nil, isHost: false}, nil
 }
 
+// GenerateInode :
 func (f *WebFS) GenerateInode(parentInode uint64, name string) uint64 {
 	inode++
 	return inode
@@ -90,7 +93,7 @@ func (d *Dir) parentDirs() (dirs string) {
 
 // Lookup :
 func (d *Dir) Lookup(ctx context.Context, name string) (fs.Node, error) {
-	//fmt.Printf("Lookup %v\n", name)
+	fmt.Printf("Lookup %v\n", name)
 	fpath := path.Join(readDir, d.parentDirs(), name)
 	info, err := os.Stat(fpath)
 	if err != nil {
@@ -131,6 +134,9 @@ func (f *File) Attr(ctx context.Context, a *fuse.Attr) error {
 // Open :
 func (f *File) Open(ctx context.Context, req *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
 	//fmt.Printf("Open %v\n", f.name)
+	if useNoRead {
+		return &FileHandle{file: f}, nil
+	}
 	fpath := path.Join(readDir, f.parent.parentDirs(), f.name)
 
 	flag := os.O_RDONLY
@@ -232,6 +238,14 @@ func (h *FileHandle) readfile(filepath string, offset int64, len int) ([]byte, e
 
 // Read :
 func (h *FileHandle) Read(ctx context.Context, req *fuse.ReadRequest, resp *fuse.ReadResponse) error {
+	if useNoRead {
+		sz := int64(req.Size)
+		if req.Offset + int64(req.Size) > contentSize {
+			sz = contentSize - req.Offset
+		}
+		resp.Data = make([]byte, sz)
+		return nil
+	}
 	fmt.Printf("Read %v (offset:%v, len:%v, directio:%v)\n", h.file.name, req.Offset, req.Size, useDirectio)
 	fpath := path.Join(readDir, h.file.parent.parentDirs(), h.file.name)
 	bytes, err := h.readfile(fpath, req.Offset, req.Size)
@@ -246,6 +260,9 @@ func (h *FileHandle) Read(ctx context.Context, req *fuse.ReadRequest, resp *fuse
 // Release :
 func (h *FileHandle) Release(ctx context.Context, req *fuse.ReleaseRequest) error {
 	//fmt.Printf("Release %v\n", h.file.name)
+	if useNoRead {
+		return nil
+	}
 	h.fp.Close()
 	return nil
 }
@@ -255,10 +272,14 @@ func main() {
 	readDirectory := flag.String("read-dir", "", "directory to read file")
 	readahead := flag.Int("read-ahead", 256, "fuse mount option : max read ahead bytes")
 	directio := flag.Bool("directio", false, "use direct i/o")
+	noread := flag.Bool("no-read", false, "no read. return fake bytes")
+	fsize := flag.Int64("content-size", 5000000, "content file size")
 	flag.Parse()
 
 	readDir = *readDirectory
 	useDirectio = *directio
+	useNoRead = *noread
+	contentSize = *fsize
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)

@@ -206,11 +206,24 @@ func main() {
 	directio := flag.Bool("directio", false, "use direct io")
 	dir := flag.String("dir", "/nginx-data", "base directory contains service file")
 	readAll := flag.Bool("read-all", false, "always read all contents")
+	fdLimit := flag.Int("fd-limit", 8192, "fd limit")
 	flag.Parse()
 
 	useDirectIO = *directio
 	directory = *dir
 	useReadAll = *readAll
+
+	var rlimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rlimit.Max = uint64(*fdLimit)
+	rlimit.Cur = uint64(*fdLimit)
+	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	r := mux.NewRouter()
 	r.Methods("GET").HandlerFunc(handleGet)

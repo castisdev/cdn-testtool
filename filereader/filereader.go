@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -87,6 +88,34 @@ func readfile(filepath string, useDirectio bool) {
 	//}
 }
 
+func readhttpOverUsd(url, host, unixSocketFile string) {
+	cl := http.Client{
+		Transport: &http.Transport{
+			Dial: func(__, _ string) (net.Conn, error) {
+				return net.Dial("unix", unixSocketFile)
+			},
+		},
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("error!! %v\n", err)
+		return
+	}
+	if host != "" {
+		req.Host = host
+	}
+	req.Header.Set("Connection", "Close")
+	res, err := cl.Do(req)
+	if err != nil {
+		fmt.Printf("error!! %v\n", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		fmt.Printf("error response!! %v \n", res.Status)
+	}
+	ioutil.ReadAll(res.Body)
+}
+
 func readhttp(url, host string) {
 	cl := httputil.NewHTTPClient(0)
 	req, err := http.NewRequest("GET", url, nil)
@@ -118,6 +147,8 @@ func main() {
 	limitT := flag.String("limit-time", "30s", "limit running time")
 	contentN := flag.Int("content", 10000, "total content count, content name: 1.mpg, 2.mpg, 3.mpg,...")
 	directio := flag.Bool("directio", false, "use direct io")
+	unixsocket := flag.Bool("usd", false, "use unix domain socket")
+	unixsocketFile := flag.String("usd-file", "/usr/local/castis/cache/sock1", "unix domain socket file")
 	flag.Parse()
 
 	duration, err := time.ParseDuration(*limitT)
@@ -145,7 +176,10 @@ func main() {
 					//fmt.Printf("[user:%v] rolling\n", idx)
 				}
 				fi := base + detail
-				if *target == "" {
+				if *unixsocket {
+					url := "http://unix/" + strconv.Itoa(fi) + ".mpg"
+					readhttpOverUsd(url, *host, *unixsocketFile)
+				} else if *target == "" {
 					f := path.Join(*dir, strconv.Itoa(fi)+".mpg")
 					readfile(f, *directio)
 				} else {

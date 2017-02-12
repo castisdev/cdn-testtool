@@ -4,12 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path"
-	"syscall"
-
 	"strconv"
+	"syscall"
 
 	"github.com/castisdev/cdn/httputil"
 	"github.com/gorilla/mux"
@@ -207,6 +207,8 @@ func main() {
 	dir := flag.String("dir", "/nginx-data", "base directory contains service file")
 	readAll := flag.Bool("read-all", false, "always read all contents")
 	fdLimit := flag.Int("fd-limit", 8192, "fd limit")
+	unixSocket := flag.Bool("usd", false, "use HTTP over unix domain socket")
+	unixSocketFile := flag.String("usd-file", "/usr/local/castis/cache/sock1", "unix domain socket file path")
 	flag.Parse()
 
 	useDirectIO = *directio
@@ -229,5 +231,19 @@ func main() {
 	r.Methods("GET").HandlerFunc(handleGet)
 	r.Methods("HEAD").HandlerFunc(handleHead)
 
-	log.Fatal(http.ListenAndServe(*addr, r))
+	if *unixSocket {
+		if err := os.RemoveAll(*unixSocketFile); err != nil {
+			log.Fatal(err)
+		}
+		listener, err := net.Listen("unix", *unixSocketFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		server := http.Server{
+			Handler: r,
+		}
+		server.Serve(listener)
+	} else {
+		log.Fatal(http.ListenAndServe(*addr, r))
+	}
 }

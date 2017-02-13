@@ -16,6 +16,7 @@ import (
 
 func main() {
 	maxChunk := flag.Int("max-chunk-count", 5, "max chunk count to request")
+	m3u8only := flag.Bool("m3u8-only", false, "request only m3u8")
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -66,6 +67,11 @@ func main() {
 	m3u8, err := os.Open(filename)
 	if err != nil {
 		log.Fatal(err)
+	}
+	defer m3u8.Close()
+
+	if *m3u8only {
+		return
 	}
 
 	s := bufio.NewScanner(m3u8)
@@ -118,5 +124,4 @@ func main() {
 			break
 		}
 	}
-	m3u8.Close()
 }

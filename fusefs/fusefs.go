@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"path"
@@ -19,15 +20,16 @@ var readDir string
 var useDirectio bool
 var useNoRead bool
 var contentSize int64
+var useDebug bool
 
 func run(dir string, readahead int) error {
 	inode = 0
 	c, err := fuse.Mount(
 		dir,
-		fuse.FSName("cache-fs"),
-		fuse.Subtype("cache-fs"),
+		fuse.FSName("fusefs"),
+		fuse.Subtype("fusefs"),
 		fuse.LocalVolume(),
-		fuse.VolumeName("cache filesystem"),
+		fuse.VolumeName("fusefs filesystem"),
 		fuse.MaxReadahead(uint32(readahead)),
 		fuse.AsyncRead(),
 		fuse.AllowOther(),
@@ -36,6 +38,12 @@ func run(dir string, readahead int) error {
 		return err
 	}
 	defer c.Close()
+
+	if useDebug {
+		fuse.Debug = func(msg interface{}) {
+			log.Printf("[debug] %v\n", msg)
+		}
+	}
 
 	srv := fs.New(c, nil)
 	filesys := &WebFS{mountdir: dir}
@@ -240,7 +248,7 @@ func (h *FileHandle) readfile(filepath string, offset int64, len int) ([]byte, e
 func (h *FileHandle) Read(ctx context.Context, req *fuse.ReadRequest, resp *fuse.ReadResponse) error {
 	if useNoRead {
 		sz := int64(req.Size)
-		if req.Offset + int64(req.Size) > contentSize {
+		if req.Offset+int64(req.Size) > contentSize {
 			sz = contentSize - req.Offset
 		}
 		resp.Data = make([]byte, sz)
@@ -274,12 +282,14 @@ func main() {
 	directio := flag.Bool("directio", false, "use direct i/o")
 	noread := flag.Bool("no-read", false, "no read. return fake bytes")
 	fsize := flag.Int64("content-size", 5000000, "content file size")
+	debug := flag.Bool("use-debug", false, "print debugging log in fuse library")
 	flag.Parse()
 
 	readDir = *readDirectory
 	useDirectio = *directio
 	useNoRead = *noread
 	contentSize = *fsize
+	useDebug = *debug
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)

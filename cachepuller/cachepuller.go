@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -8,9 +9,12 @@ import (
 )
 
 func main() {
+	target := flag.String("addr", ":8080", "cache server address")
+	flag.Parse()
+
 	for i := 1; i <= 10000; i++ {
 		f := strconv.Itoa(i) + ".mpg"
-		req, err := http.NewRequest("GET", "http://localhost:8080/"+f, nil)
+		req, err := http.NewRequest("GET", "http://"+*target+"/"+f, nil)
 		req.Host = "eve"
 		if err != nil {
 			log.Fatal(err)

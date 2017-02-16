@@ -98,16 +98,29 @@ func readhttpOverUds(url, host, unixSocketFile string) {
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Printf("error!! %v\n", err)
+		fmt.Printf("failed to create request %v\n", err)
 		return
 	}
 	if host != "" {
 		req.Host = host
 	}
 	req.Header.Set("Connection", "Close")
-	res, err := cl.Do(req)
+	var res *http.Response
+	res, err = cl.Do(req)
 	if err != nil {
-		fmt.Printf("error!! %v\n", err)
+
+		retryCnt := 5
+		for i := 0; i < retryCnt; i++ {
+			fmt.Printf("failed to do http, but retry, %v\n", err)
+			res, err = cl.Do(req)
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			fmt.Printf("finally failed to do http, %v\n", err)
+			return
+		}
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
@@ -149,9 +162,24 @@ func main() {
 	directio := flag.Bool("directio", false, "use direct io")
 	unixsocket := flag.Bool("uds", false, "use unix domain socket")
 	unixsocketFile := flag.String("uds-file", "/usr/local/castis/cache/sock1", "unix domain socket file")
+	fdLimit := flag.Int("fd-limit", 8192, "fd limit")
 	flag.Parse()
 
 	duration, err := time.ParseDuration(*limitT)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	var rlimit syscall.Rlimit
+	err = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	rlimit.Max = uint64(*fdLimit)
+	rlimit.Cur = uint64(*fdLimit)
+	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

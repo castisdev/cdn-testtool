@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<placementDecisionResponse messageId="8d4c76e0-902d-494e-88a3-a706a68b3a2e" messageIdRef="{{.MessageIDRef}}">
+    <result code="100">
+        <message>success</message>
+    </result>
+    <requestId>{{.RequestID}}</requestId>
+    <placementDecision id="fba0d27a-38c9-4d76-acbf-1d940078eacb" opportunityType="Pre-Roll" opportunityId="1ab18336-0f74-48dd-96fa-2d3f8264b9cb">
+        <placement id="12b02a68-dec2-415f-904f-195b9a11df3d">
+            <slotNumber>1</slotNumber>
+            <fileName>{{.ADVFile}}</fileName>
+            <tracking>b4a79aec-8ed2-44f2-a9eb-55c0e9342bbe</tracking>
+        </placement>
+    </placementDecision>
+</placementDecisionResponse>

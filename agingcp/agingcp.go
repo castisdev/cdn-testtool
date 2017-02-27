@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 
 	"github.com/castisdev/cdn/httputil"
 )
@@ -59,39 +60,53 @@ func purge(file string) {
 	}
 	log.Printf("sucess to purge %v\n", url)
 }
+func importFile(src, dst, rangeHeader string) {
+	url := "http://" + path.Join(importAddr, path.Base(dst))
+	log.Printf("import %v Range:%v ...\n", url, rangeHeader)
+
+	cl := httputil.NewHTTPClient(0)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("error!! %v\n", err)
+		return
+	}
+	req.Host = host
+	req.Header.Set("Connection", "Close")
+	req.Header.Set("Range", rangeHeader)
+
+	res, err := cl.Do(req)
+	if err != nil {
+		fmt.Printf("error!! %v\n", err)
+	}
+	defer res.Body.Close()
+	_, err = ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if res.StatusCode != 206 {
+		fmt.Printf("response status code is not 206, %v\n", res.Status)
+		return
+	}
+	return
+}
 
 func link(mode, src, dst string, importSize int64) {
 	if importAddr != "" {
-		url := "http://" + path.Join(importAddr, path.Base(dst))
-		ra := "bytes=0-" + strconv.FormatInt(importSize, 10)
+		importFile(src, dst, "bytes=0-"+strconv.FormatInt(importSize, 10))
 
-		log.Printf("import %v Range:%v ...\n", url, ra)
-
-		cl := httputil.NewHTTPClient(0)
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			fmt.Printf("error!! %v\n", err)
-			return
+		var ra string
+		switch {
+		case strings.Contains(src, "HD_2001"):
+			ra = "bytes=3831439224-3841439223"
+		case strings.Contains(src, "HD_2021"):
+			ra = "bytes=4246566522-4256566521"
+		case strings.Contains(src, "HD_2041"):
+			ra = "bytes=1446684742-1456684741"
+		case strings.Contains(src, "SD_2001"):
+			ra = "bytes=1685212170-1695212169"
 		}
-		req.Host = host
-		req.Header.Set("Connection", "Close")
-		req.Header.Set("Range", ra)
-
-		res, err := cl.Do(req)
-		if err != nil {
-			fmt.Printf("error!! %v\n", err)
-		}
-		defer res.Body.Close()
-		_, err = ioutil.ReadAll(res.Body)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		if res.StatusCode != 206 {
-			fmt.Printf("response status code is not 206, %v\n", res.Status)
-			return
-		}
-		return
+		importFile(src, dst, ra)
 	}
 
 	if mode == "copy" {

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"syscall"
 
+	"time"
+
 	"github.com/castisdev/cdn/httputil"
 	"github.com/gorilla/mux"
 )
@@ -136,6 +138,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
+	w.Header().Set("Last-Modified", fi.ModTime().Format(time.RFC1123))
 	if ra := r.Header.Get("Range"); len(ra) > 0 {
 		ras, err := httputil.ParseRange(ra, fi.Size())
 		if err != nil {
@@ -185,6 +188,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Last-Modified", f.ModTime().Format(time.RFC1123))
 	if ra := r.Header.Get("Range"); len(ra) > 0 {
 		ras, err := httputil.ParseRange(ra, f.Size())
 		if err != nil {

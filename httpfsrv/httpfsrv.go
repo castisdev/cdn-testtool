@@ -13,7 +13,7 @@ import (
 
 	"time"
 
-	"github.com/castisdev/cdn/httputil"
+	"github.com/castisdev/cdn/hutil"
 	"github.com/gorilla/mux"
 )
 
@@ -140,7 +140,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Last-Modified", fi.ModTime().Format(time.RFC1123))
 	if ra := r.Header.Get("Range"); len(ra) > 0 {
-		ras, err := httputil.ParseRange(ra, fi.Size())
+		ras, err := hutil.ParseRange(ra, fi.Size())
 		if err != nil {
 			log.Printf("failed to parse range, %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -190,7 +190,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Last-Modified", f.ModTime().Format(time.RFC1123))
 	if ra := r.Header.Get("Range"); len(ra) > 0 {
-		ras, err := httputil.ParseRange(ra, f.Size())
+		ras, err := hutil.ParseRange(ra, f.Size())
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return

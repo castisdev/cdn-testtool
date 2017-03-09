@@ -2,6 +2,8 @@
 vodclient/vodclient
 hlsclient/hlsclient
 cachepuller/cachepuller
-cachepuller/debug
 httpfsrv/httpfsrv
-httpfsrv/debug
+filereader/filereader
+fusefs/fusefs
+debug
+debug.test

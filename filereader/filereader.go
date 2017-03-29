@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/castisdev/cdn/httputil"
+	"github.com/castisdev/cdn/hutil"
 	"github.com/ncw/directio"
 )
 
@@ -130,7 +130,7 @@ func readhttpOverUds(url, host, unixSocketFile string) {
 }
 
 func readhttp(url, host string) {
-	cl := httputil.NewHTTPClient(0)
+	cl := hutil.NewHTTPClient(0)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Printf("error!! %v\n", err)

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/castisdev/cdn/httputil"
+	"github.com/castisdev/cdn/hutil"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func main() {
 	log.Printf("%s %s", req.Method, req.URL)
 	started := time.Now()
 
-	cl := httputil.NewHTTPClientWithoutRedirect(0)
+	cl := hutil.NewHTTPClientWithoutRedirect(0)
 	resp, err := cl.Do(req)
 	if err != nil {
 		log.Fatal(err)
@@ -51,7 +51,7 @@ func main() {
 
 	const size = 524288
 	for i := 0; i < 10; i++ {
-		c := httputil.NewHTTPClient(0)
+		c := hutil.NewHTTPClient(0)
 		req, err := http.NewRequest("GET", sessionUrl, nil)
 		if err != nil {
 			log.Fatal(err)

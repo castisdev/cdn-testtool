@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/castisdev/cdn/httputil"
+	"github.com/castisdev/cdn/hutil"
 )
 
 func copyFileContents(src, dst string) (err error) {
@@ -45,7 +45,7 @@ var purgeAddr string
 func purge(file string) {
 	url := "http://" + path.Join(purgeAddr, "api/caches", host, file)
 
-	cl := httputil.NewHTTPClient(0)
+	cl := hutil.NewHTTPClient(0)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		log.Fatalf("failed to purge %v, %v\n", url, err)
@@ -64,7 +64,7 @@ func importFile(src, dst, rangeHeader string) {
 	url := "http://" + path.Join(importAddr, path.Base(dst))
 	log.Printf("import %v Range:%v ...\n", url, rangeHeader)
 
-	cl := httputil.NewHTTPClient(0)
+	cl := hutil.NewHTTPClient(0)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Printf("error!! %v\n", err)

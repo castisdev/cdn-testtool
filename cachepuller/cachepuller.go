@@ -10,12 +10,13 @@ import (
 
 func main() {
 	target := flag.String("addr", ":8080", "cache server address")
+	host := flag.String("host", "eve", "host")
 	flag.Parse()
 
 	for i := 1; i <= 10000; i++ {
 		f := strconv.Itoa(i) + ".mpg"
 		req, err := http.NewRequest("GET", "http://"+*target+"/"+f, nil)
-		req.Host = "eve"
+		req.Host = *host
 		if err != nil {
 			log.Fatal(err)
 		}

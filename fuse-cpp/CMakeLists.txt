@@ -7,7 +7,10 @@ add_definitions(-Wall -D_REENTRANT -D_GNU_SOURCE -D_UNICODE -g -Os)
 
 include(FindPkgConfig)
 pkg_check_modules(FUSE REQUIRED fuse)
-include_directories(${FUSE_INCLUDE_DIRS})
+include_directories(
+    SYSTEM ${Boost_INCLUDE_DIRS}
+    SYSTEM ${FUSE_INCLUDE_DIRS}
+)
 link_directories(${FUSE_LIBRARY_DIRS})
 
 add_executable(fuse-cpp-directio fusefs_directio.cpp)

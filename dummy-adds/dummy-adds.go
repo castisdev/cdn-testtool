@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
 	"text/template"
 	"time"
@@ -24,14 +25,17 @@ func main() {
 	flag.IntVar(&missRate, "cache-miss-rate", 0, "cache miss rate (percent)")
 	flag.Parse()
 
+	if _, err := os.Stat("adds.response"); err != nil {
+		log.Fatal(err)
+	}
 	http.HandleFunc("/", MyHandler)
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }
 
-// AD-1-N.mpg / AD-2-N.mpg : N: 1 ~ 100
+// AD-1-N.mpg / AD-2-N.mpg : N: 1 ~ 5000
 func advFileForHit() string {
 	idx := atomic.AddUint32(&hitIdx, 1)
-	idx %= 200
+	idx %= 10000
 	if idx%2 == 0 {
 		return fmt.Sprintf("AD-1-%d.mpg", (idx/2)+1)
 	}
@@ -71,7 +75,11 @@ func MyHandler(w http.ResponseWriter, r *http.Request) {
 	var msg = Msg{r.URL.Query().Get("messageId"), r.URL.Query().Get("requestId"), advFile}
 	t, _ := template.ParseFiles("adds.response")
 	var b bytes.Buffer
-	t.Execute(&b, msg)
+	if err := t.Execute(&b, msg); err != nil {
+		log.Printf("adds.response template read error: %v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	code := http.StatusOK
 	w.WriteHeader(code)

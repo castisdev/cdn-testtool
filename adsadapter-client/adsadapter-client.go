@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"database/sql"
 	"flag"
 	"fmt"
 	"io"
@@ -15,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -26,14 +24,12 @@ const (
 )
 
 func main() {
-	var cfgFile, orgFile, targetFile, dbAddr, dbName string
+	var cfgFile, orgFile, targetFile string
 	var centerOnly bool
 	flag.StringVar(&cfgFile, "cfg", "cfg.yml", "config file")
 	flag.StringVar(&orgFile, "org-file", "org.mpg", "original file to deliver")
 	flag.StringVar(&targetFile, "target-file", "", "target file name")
 	flag.BoolVar(&centerOnly, "center", false, "if true, target will be only center")
-	flag.StringVar(&dbAddr, "db-addr", "", "DB address ex) 172.16.232.23:3306")
-	flag.StringVar(&dbName, "db-name", "kt_test", "database name")
 	flag.Parse()
 
 	cfg, err := NewConfig(cfgFile)
@@ -77,27 +73,11 @@ func main() {
 			break
 		}
 	}
-	if finalErr == nil || (finalErr != nil && isPartialError(finalErr)) {
-		err := addServiceContents(dbAddr, dbName, file, centerOnly)
-		if err != nil {
-			log.Fatalf("failed to add to service content, %v", err)
-		}
-	}
 	if finalErr != nil {
 		log.Printf("%v completed with failed node, elapsed:%v, %v", file, time.Since(begT), finalErr)
 	} else {
 		log.Printf("%v completed, elapsed:%v", file, time.Since(begT))
 	}
-}
-
-func addServiceContents(dbAddr, dbName, file string, centerOnly bool) error {
-	db, err := sql.Open("mysql", fmt.Sprintf("root:castis@tcp(%v)/%v", dbAddr, dbName))
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	_, err = db.Exec("INSERT INTO service_content (file, is_hot) VALUES (?, ?);", file, !centerOnly)
-	return err
 }
 
 func sendXML(addr, xml string) (string, error) {
@@ -340,7 +320,6 @@ func TransactionID(reply string) string {
 // Config :
 type Config struct {
 	AdsadapterAddr       string   `yaml:"adsadapter-addr"`
-	DBAddr               string   `yaml:"db-addr"`
 	Center               []string `yaml:"center-ips"`
 	Node                 []string `yaml:"node-ips"`
 	Bandwidth            int64    `yaml:"bandwidth"`

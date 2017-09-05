@@ -1,5 +1,4 @@
 adsadapter-addr: 172.16.110.202:8083
-db-addr: 172.16.232.23:3306
 mpg: AD.mpg
 bandwidth: 8000000
 client-dir: /data2/upload2

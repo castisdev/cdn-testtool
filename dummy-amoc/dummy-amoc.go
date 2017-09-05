@@ -25,14 +25,16 @@ type Request struct {
 }
 
 func main() {
-	var addr, dbAddr, dbName string
+	var addr, dbAddr, dbName, dbUser, dbPass string
 	flag.StringVar(&addr, "addr", "0.0.0.0:8082", "listen address")
 	flag.StringVar(&dbAddr, "db-addr", "", "mysql DB  address, need only for kt-simul, (ex)172.16.232.23:3306")
 	flag.StringVar(&dbName, "db-name", "kt_test", "database name, need only for kt-simul")
+	flag.StringVar(&dbUser, "db-user", "", "database user, need only for kt-simul")
+	flag.StringVar(&dbPass, "db-pass", "", "database pass, need only for kt-simul")
 	flag.Parse()
 
 	if dbAddr != "" {
-		if err := checkDB(dbAddr, dbName); err != nil {
+		if err := checkDB(dbAddr, dbName, dbUser, dbPass); err != nil {
 			log.Fatalf("failed to connect DB, %v", err)
 		}
 	}
@@ -49,7 +51,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to accept, %v", err)
 		}
-		go handleRequest(conn, dbAddr, dbName)
+		go handleRequest(conn, dbAddr, dbName, dbUser, dbPass)
 	}
 }
 
@@ -104,7 +106,7 @@ func resonseXML(req Request) string {
 	return r
 }
 
-func handleRequest(conn net.Conn, dbAddr, dbName string) {
+func handleRequest(conn net.Conn, dbAddr, dbName, dbUser, dbPass string) {
 	buf := make([]byte, 4096)
 	_, err := conn.Read(buf)
 	if err != nil {
@@ -119,14 +121,14 @@ func handleRequest(conn net.Conn, dbAddr, dbName string) {
 	log.Printf("%s\n\n", res)
 	conn.Close()
 	if dbAddr != "" {
-		if err := updateDB(dbAddr, dbName, req); err != nil {
+		if err := updateDB(dbAddr, dbName, dbUser, dbPass, req); err != nil {
 			log.Fatalf("failed to update DB, %v", err)
 		}
 	}
 }
 
-func checkDB(dbAddr, dbName string) error {
-	url := fmt.Sprintf("root:castis@tcp(%s)/%s", dbAddr, dbName)
+func checkDB(dbAddr, dbName, dbUser, dbPass string) error {
+	url := fmt.Sprintf("%s:%s@tcp(%s)/%s", dbUser, dbPass, dbAddr, dbName)
 	db, err := sql.Open("mysql", url)
 	if err != nil {
 		return err
@@ -135,9 +137,9 @@ func checkDB(dbAddr, dbName string) error {
 	return nil
 
 }
-func updateDB(dbAddr, dbName string, req *Request) error {
+func updateDB(dbAddr, dbName, dbUser, dbPass string, req *Request) error {
 	if req.reqType == "UpdateCopyContent" {
-		url := fmt.Sprintf("root:castis@tcp(%s)/%s", dbAddr, dbName)
+		url := fmt.Sprintf("%s:%s@tcp(%s)/%s", dbUser, dbPass, dbAddr, dbName)
 		db, err := sql.Open("mysql", url)
 		if err != nil {
 			return err

@@ -3,76 +3,125 @@ package ktsimul
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"math/rand"
 	"path"
 	"strconv"
 	"time"
+
+	"github.com/castisdev/cilog"
 )
+
+// SetupEvent :
+type SetupEvent struct {
+	clientIP  string
+	clientDir string
+	clientBin string
+	logPath   string
+	file      string
+	glbIP     string
+	isHot     bool
+	isTCP     bool
+	sessionDu time.Duration
+}
+
+func (ev SetupEvent) String() string {
+	return fmt.Sprintf("client(%v %v %v log:%v) %v glb(%v) isHot(%v) isTCP(%v) duration(%d)",
+		ev.clientIP, ev.clientDir, ev.clientBin, path.Base(ev.logPath), ev.file, ev.glbIP, ev.isHot, ev.isTCP, int64(ev.sessionDu.Seconds()))
+}
 
 // RunSetupOne :
 func RunSetupOne(cfg *Config, localCfg LocalConfig) error {
-	file, err := fileForSetup(cfg.DBAddr, cfg.DBName, cfg.DBUser, cfg.DBPass)
+	isHot := isHotForSetup()
+	file, err := fileForSetup(cfg.DBAddr, cfg.DBName, cfg.DBUser, cfg.DBPass, isHot)
 	if err != nil {
 		return fmt.Errorf("failed to select file for setup, %v", err)
 	}
 	glbIP := localCfg.GLBIP
-	if isHotForSetup() == false {
+	if isHot == false {
 		glbIP = cfg.CenterGLBIPs[rand.Intn(len(cfg.CenterGLBIPs))]
 	}
-	client := cfg.VODClientBins[rand.Intn(len(cfg.VODClientBins))]
-	isTCP := (rand.Intn(10) == 0)
-	err = SetupOne(cfg, vodClientIPForSetup(cfg), client, file, glbIP, isTCP, localCfg.SessionDu)
+
+	var layout = "20060102150405235"
+	t := time.Now().Format(layout)
+
+	ev := &SetupEvent{
+		clientIP:  vodClientIPForSetup(cfg),
+		clientDir: cfg.RemoteVodClientDir,
+		clientBin: cfg.VODClientBins[rand.Intn(len(cfg.VODClientBins))],
+		file:      file,
+		logPath:   path.Join(cfg.RemoteVodClientDir, "log", t+"."+file+".log"),
+		glbIP:     glbIP,
+		isHot:     isHot,
+		isTCP:     (rand.Intn(10) == 0),
+		sessionDu: localCfg.SessionDu,
+	}
+	cilog.Infof("start session: %s", ev)
+
+	err = SetupOne(cfg, ev)
+
+	cilog.Infof("end session: %s, error(%v)", path.Base(ev.logPath), err != nil)
 	if err != nil {
-		return fmt.Errorf("failed to setup one, %v", err)
+		cmd := "tail -5 " + ev.logPath
+		out, e := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+		if e == nil {
+			return fmt.Errorf("failed to setup %v, %v\n%v %v\n%v", ev.file, err, ev.clientIP, ev.logPath, out)
+		}
+		return fmt.Errorf("failed to setup %v, %v", ev.file, err)
+	}
+
+	if err := RemoteDelete(cfg, ev.clientIP, ev.logPath); err != nil {
+		return fmt.Errorf("failed to delete %v %v, %v", ev.clientIP, ev.logPath, err)
 	}
 	return nil
 }
 
 // SetupOne :
-func SetupOne(cfg *Config, clientIP, clientBin, file, glbIP string, isTCP bool, sessionD time.Duration) error {
-	var layout = "20060102150405235"
-	t := time.Now().Format(layout)
-
+func SetupOne(cfg *Config, ev *SetupEvent) error {
 	glbPort := "1554"
-	glbAddr := glbIP + ":" + glbPort
+	glbAddr := ev.glbIP + ":" + glbPort
 
-	dir := cfg.RemoteVodClientDir
-	logDir := path.Join(dir, "log")
-	logPath := path.Join(logDir, t+"."+file+".log")
-
-	cmd := "mkdir -p " + logDir
-	out, err := RemoteRun(clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	cmd := "mkdir -p " + path.Dir(ev.logPath)
+	out, err := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
-		return fmt.Errorf("failed to remote-run, %v", err)
+		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 
-	targetBin := path.Join(dir, clientBin)
+	targetBin := path.Join(ev.clientDir, ev.clientBin)
 	cmd = `if [ ! -e ` + targetBin + ` ]; then echo "not exists"; fi`
 
-	out, err = RemoteRun(clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
-		return fmt.Errorf("failed to remote-run, %v", err)
+		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 	if out != "" {
-		err := RemoteCopy(clientIP, cfg.RemoteUser, cfg.RemotePass, clientBin, dir)
+		err := RemoteCopy(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, ev.clientBin, ev.clientDir)
 		if err != nil {
-			return fmt.Errorf("failed to remote-run, %v", err)
+			return fmt.Errorf("failed to remote-copy, %v", err)
 		}
 	}
 	protocol := "cirtsp"
-	if isTCP {
+	if ev.isTCP {
 		protocol = "cirtspt"
 	}
-	playSec := sessionD.Seconds()
+	playSec := ev.sessionDu.Seconds()
 	if playSec == 0 {
 		playSec = 1
 	}
-	cmd = targetBin + " " + protocol + "://" + glbAddr + "/" + file + " " + strconv.FormatInt(int64(playSec), 10) + " > " + logPath
-	out, err = RemoteRun(clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	cmd = targetBin + " " + protocol + "://" + glbAddr + "/" + ev.file + " " + strconv.FormatInt(int64(playSec), 10) + " > " + ev.logPath
+	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
-		return fmt.Errorf("failed to remote-run, %v", err)
+		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
+
+	cmd = "grep 'play(): success.' " + ev.logPath
+	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	if err != nil {
+		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
+	}
+	if out == "" {
+		return fmt.Errorf("failed to play vod")
+	}
+
 	return nil
 }
 
@@ -132,7 +181,7 @@ var setupHotQueueCurIdx int
 
 func isHotForSetup() bool {
 	if setupHotQueue == nil {
-		setupHotQueue = []bool{true, false, false, true, false, false, true, false, false, false}
+		setupHotQueue = []bool{true, true, false, true, true, true, false, true, true, true}
 	}
 	ret := setupHotQueue[setupHotQueueCurIdx]
 	setupHotQueueCurIdx++
@@ -142,7 +191,7 @@ func isHotForSetup() bool {
 	return ret
 }
 
-func fileForSetup(dbAddr, dbName, dbUser, dbPass string) (string, error) {
+func fileForSetup(dbAddr, dbName, dbUser, dbPass string, isHot bool) (string, error) {
 	file := ""
 	if setupHotFileCurIdx >= len(setupHotFileQueue) || setupColdFileCurIdx >= len(setupColdFileQueue) {
 		err := updateFilesForSetup(dbAddr, dbName, dbUser, dbPass)
@@ -150,7 +199,7 @@ func fileForSetup(dbAddr, dbName, dbUser, dbPass string) (string, error) {
 			return "", err
 		}
 	}
-	if isHotForSetup() {
+	if isHot {
 		file = setupHotFileQueue[setupHotFileCurIdx]
 		setupHotFileCurIdx++
 	} else {
@@ -162,8 +211,5 @@ func fileForSetup(dbAddr, dbName, dbUser, dbPass string) (string, error) {
 }
 
 func vodClientIPForSetup(cfg *Config) string {
-	if len(cfg.VODClientIPs) == 0 {
-		log.Fatal("vod client ip is empty")
-	}
 	return cfg.VODClientIPs[rand.Intn(len(cfg.VODClientIPs))]
 }

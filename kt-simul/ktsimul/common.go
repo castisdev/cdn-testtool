@@ -4,16 +4,18 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"path"
 	"time"
 
+	"github.com/castisdev/cilog"
 	"golang.org/x/crypto/ssh"
 	yaml "gopkg.in/yaml.v2"
 )
 
 // Config :
 type Config struct {
+	LogDir                    string        `yaml:"log-dir"`
+	LogLevel                  cilog.Level   `yaml:"log-level"`
 	EADSIP                    string        `yaml:"eads-ip"`
 	Locals                    []LocalConfig `yaml:"locals"`
 	CenterGLBIPs              []string      `yaml:"center-glb-ips"`
@@ -48,6 +50,9 @@ func NewConfig(ymlPath string) (*Config, error) {
 	err = yaml.Unmarshal([]byte(data), &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("yaml unmarshal error: %v", err)
+	}
+	if len(cfg.VODClientIPs) == 0 {
+		return nil, fmt.Errorf("vod client ip is empty")
 	}
 	return cfg, nil
 }
@@ -86,7 +91,7 @@ func RemoteCopy(addr, user, pass, filepath, remoteDir string) error {
 		fmt.Fprintln(w, "C0755", len(content), fname)
 		fmt.Fprint(w, content)
 		fmt.Fprint(w, "\x00") // transfer end with \x00
-		log.Printf("remote-copy [%v] %v to %v\n", addr, filepath, path.Join(remoteDir, fname))
+		cilog.Debugf("remote-copy [%v] %v to %v", addr, filepath, path.Join(remoteDir, fname))
 	}()
 	if err := session.Run("/usr/bin/scp -tr " + remoteDir); err != nil {
 		return err
@@ -115,10 +120,23 @@ func RemoteRun(addr, user, pass, cmd string) (string, error) {
 		return "", err
 	}
 	defer session.Close()
-	var out bytes.Buffer
-	session.Stdout = &out
-	log.Printf("remote-run [%v] %v\n", addr, cmd)
+	var stdout, stderr bytes.Buffer
+	session.Stdout = &stdout
+	session.Stderr = &stderr
+	cilog.Debugf("remote-run [%v] %v", addr, cmd)
 	err = session.Run(cmd)
-	log.Printf("remote-run [%v] %v\n", addr, out.String())
-	return out.String(), err
+	if err != nil {
+		cilog.Debugf("remote-run [%v] %v", addr, stderr.String())
+		return stdout.String(), fmt.Errorf("%v, stderr:%s", err, stderr.String())
+	}
+	cilog.Debugf("remote-run [%v] %v", addr, stdout.String())
+
+	return stdout.String(), err
+}
+
+// RemoteDelete :
+func RemoteDelete(cfg *Config, clientIP, filepath string) error {
+	cmd := "rm " + filepath
+	_, err := RemoteRun(clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	return err
 }

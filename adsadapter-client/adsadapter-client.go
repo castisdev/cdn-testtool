@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -50,7 +51,7 @@ func main() {
 			assetID = file
 		}
 	}
-	reply, err := FileTransfer(cfg, orgFile, assetID, file, centerOnly)
+	reply, srcFile, err := FileTransfer(cfg, orgFile, assetID, file, centerOnly)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -77,6 +78,9 @@ func main() {
 		log.Printf("%v completed with failed node, elapsed:%v, %v", file, time.Since(begT), finalErr)
 	} else {
 		log.Printf("%v completed, elapsed:%v", file, time.Since(begT))
+	}
+	if err := os.Remove(srcFile); err != nil {
+		log.Printf("failed to remove %v, %v\n", srcFile, err)
 	}
 }
 
@@ -126,21 +130,21 @@ func CopyFile(dst, src string) error {
 }
 
 // FileTransfer :
-func FileTransfer(cfg *Config, orgFile, assetID, file string, centerOnly bool) (string, error) {
+func FileTransfer(cfg *Config, orgFile, assetID, file string, centerOnly bool) (reply string, srcFile string, e error) {
 	curDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	mpgDir := filepath.Join(curDir, "transfer")
 	if _, err := os.Stat(mpgDir); os.IsNotExist(err) {
 		os.MkdirAll(mpgDir, 0755)
 	}
 	if err = CopyFile(filepath.Join(mpgDir, file), orgFile); err != nil {
-		return "", err
+		return "", "", err
 	}
 	fi, err := os.Stat(filepath.Join(mpgDir, file))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	xml := `<?xml version="1.0" encoding="UTF-8"?>
@@ -187,12 +191,13 @@ NODE_INFOS
 		}
 	}
 	if nodes == "" {
-		return "", fmt.Errorf("not exist node info, check center-ips/node-ips config")
+		return "", "", fmt.Errorf("not exist node info, check center-ips/node-ips config")
 	}
 
 	xml = strings.Replace(xml, "NODE_INFOS", nodes, -1)
 
-	return sendXML(cfg.AdsadapterAddr, xml)
+	r, err := sendXML(cfg.AdsadapterAddr, xml)
+	return r, path.Join(mpgDir, file), err
 }
 
 // TimeToStr :

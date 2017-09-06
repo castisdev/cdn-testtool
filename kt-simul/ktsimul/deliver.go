@@ -7,24 +7,70 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/castisdev/cilog"
 )
 
+// DeliverEvent :
+type DeliverEvent struct {
+	clientIP  string
+	clientDir string
+	file      string
+	logPath   string
+	isHot     bool
+	orgFile   string
+}
+
+func (ev DeliverEvent) String() string {
+	return fmt.Sprintf("client(%v %v log:%v) %v isHot(%v) org(%v)",
+		ev.clientIP, ev.clientDir, ev.logPath, ev.file, ev.isHot, ev.orgFile)
+}
+
+// ProcessingStat :
+type ProcessingStat struct {
+	Delivers       map[string]*DeliverEvent
+	StartDeliverCh chan *DeliverEvent
+	EndDeliverCh   chan string
+}
+
+// NewProcessingStat :
+func NewProcessingStat() *ProcessingStat {
+	return &ProcessingStat{
+		Delivers:       make(map[string]*DeliverEvent),
+		StartDeliverCh: make(chan *DeliverEvent, 100),
+		EndDeliverCh:   make(chan string, 100),
+	}
+}
+
+// Start :
+func (p *ProcessingStat) Start() {
+	for {
+		select {
+		case ev := <-p.StartDeliverCh:
+			p.Delivers[ev.file] = ev
+		case key := <-p.EndDeliverCh:
+			delete(p.Delivers, key)
+		}
+	}
+}
+
+// StartDeliver :
+func (p *ProcessingStat) StartDeliver(ev *DeliverEvent) {
+	p.StartDeliverCh <- ev
+}
+
+// EndDeliver :
+func (p *ProcessingStat) EndDeliver(ev *DeliverEvent) {
+	p.EndDeliverCh <- ev.file
+}
+
 // RunDeliverOne :
-func RunDeliverOne(cfg *Config) error {
+func RunDeliverOne(cfg *Config, stat *ProcessingStat) error {
 	org, err := OrgFileForDeliver(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to select original file to deliver, %v", err)
 	}
-	err = DeliverOne(cfg, org, IsHotForDeliver())
-	if err != nil {
-		return fmt.Errorf("failed to deliver one, %v", err)
-	}
 
-	return nil
-}
-
-// DeliverOne :
-func DeliverOne(cfg *Config, orgFile string, isHot bool) error {
 	var layout = "20060102150405235"
 	t := time.Now().Format(layout)
 	targetFile := t + ".mpg"
@@ -33,26 +79,56 @@ func DeliverOne(cfg *Config, orgFile string, isHot bool) error {
 	logDir := path.Join(dir, "log")
 	logPath := path.Join(logDir, t+".log")
 
-	cmd := fmt.Sprintf("mkdir -p %v;cd %v;", logDir, dir)
-	cmd += fmt.Sprintf("./adsadapter-client -org-file %v -target-file %v ",
-		orgFile, targetFile)
-	if isHot == false {
-		cmd += " -center"
+	ev := &DeliverEvent{
+		clientIP:  cfg.EADSIP,
+		clientDir: cfg.RemoteADSAdapterClientDir,
+		file:      targetFile,
+		logPath:   logPath,
+		isHot:     IsHotForDeliver(),
+		orgFile:   org,
 	}
-	cmd += " 2> " + logPath
-	out, err := RemoteRun(cfg.EADSIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	cilog.Infof("start deliver : %s", ev)
+
+	err = DeliverOne(cfg, ev)
+
+	cilog.Infof("end deliver : %s error(%v)", ev.file, err != nil)
 	if err != nil {
-		return fmt.Errorf("failed to remote-run, %v", err)
+		cmd := "tail -5 " + ev.logPath
+		out, e := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+		if e == nil {
+			return fmt.Errorf("failed to deliver %v, %v\n%v %v\n%v", ev.file, err, ev.clientIP, ev.logPath, out)
+		}
+		return fmt.Errorf("failed to deliver %v, %v", ev.file, err)
+	}
+	if err := RemoteDelete(cfg, ev.clientIP, ev.logPath); err != nil {
+		return fmt.Errorf("failed to delete %v %v, %v", ev.clientIP, ev.logPath, err)
 	}
 
-	cmd = "grep completed " + logPath
-	out, err = RemoteRun(cfg.EADSIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	return nil
+}
+
+// DeliverOne :
+func DeliverOne(cfg *Config, ev *DeliverEvent) error {
+	cmd := fmt.Sprintf("mkdir -p %v;cd %v;", path.Dir(ev.logPath), ev.clientDir)
+	cmd += fmt.Sprintf("./adsadapter-client -org-file %v -target-file %v ",
+		ev.orgFile, ev.file)
+	if ev.isHot == false {
+		cmd += " -center"
+	}
+	cmd += " 2> " + ev.logPath
+	out, err := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
-		return fmt.Errorf("failed to remote-run, %v", err)
+		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
+	}
+
+	cmd = "grep completed " + ev.logPath
+	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	if err != nil {
+		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 	if out != "" {
 		if strings.Contains(out, "all failed") == false {
-			err := addServiceContents(cfg.DBAddr, cfg.DBName, cfg.DBUser, cfg.DBPass, targetFile, isHot)
+			err := addServiceContents(cfg.DBAddr, cfg.DBName, cfg.DBUser, cfg.DBPass, ev.file, ev.isHot)
 			if err != nil {
 				return fmt.Errorf("failed to insert into service content table, %v", err)
 			}

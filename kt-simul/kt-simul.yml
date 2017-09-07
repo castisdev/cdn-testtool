@@ -1,0 +1,42 @@
+db-addr: 172.16.2.2:3306  # mysql db
+db-name: db
+db-user: foo
+db-pass: bar
+remote-vod-client-dir: /home/castis/kt-simul/vodclient
+remote-adsadapter-client-dir: /home/castis/kt-simul/adsa-client
+remote-origin-file-dir: /home/castis/kt-simul/adsa-client/orgfile
+remote-user: foo
+remote-pass: bar
+deliver-sleep: 30s
+vod-client-bins:  # http://172.16.45.11/tools/SimpleVODClient.immediateplay.playtime.tar.gz
+  - SimpleVODClient_Linux_x64_3.x.immediateplay.playtime
+  - SimpleVODClient_Linux_x64_4.x.immediateplay.playtime
+vod-client-ips:
+  - 172.16.110.202
+  - 172.16.234.18
+eads-ip: 172.16.110.202
+center-glb-ips:
+  - 172.16.161.132
+  - 172.16.40.200
+locals:
+  -
+    glb-ip: 172.16.33.74
+    setup-period: 1s
+    session-duration: 10s
+    dong-code: 111111
+  -
+    glb-ip: 172.16.19.74
+    setup-period: 2s
+    session-duration: 10s
+    dong-code: 222222
+
+source-files:
+  - 1.2Mbps-5m-index.mpg
+  - 3Mbps-5m-index.mpg
+
+file-deliver:
+  adsadapter-addr: 172.16.110.202:8083
+  client-dir: /data2/upload2
+  mch-ip: 239.0.1.11
+  mch-port: 5011
+  bandwidth: 80000000

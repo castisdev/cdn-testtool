@@ -109,12 +109,28 @@ func RunDeliverOne(cfg *Config, stat *ProcessingStat) error {
 
 // DeliverOne :
 func DeliverOne(cfg *Config, ev *DeliverEvent) error {
-	cmd := fmt.Sprintf("mkdir -p %v;cd %v;", path.Dir(ev.logPath), ev.clientDir)
-	cmd += fmt.Sprintf("./adsadapter-client -org-file %v -target-file %v ",
-		ev.orgFile, ev.file)
-	if ev.isHot == false {
-		cmd += " -center"
+	nodes := ""
+	for _, v := range cfg.CenterGLBIPs {
+		if nodes != "" {
+			nodes += ","
+		}
+		nodes += v
 	}
+	if ev.isHot {
+		for _, v := range cfg.Locals {
+			if nodes != "" {
+				nodes += ","
+			}
+			nodes += v.GLBIP
+		}
+	}
+	cmd := fmt.Sprintf("mkdir -p %v;cd %v;", path.Dir(ev.logPath), ev.clientDir)
+	cmd += fmt.Sprintf("./adsadapter-client -org-file %v -target-file %v",
+		ev.orgFile, ev.file)
+	fc := cfg.FileDeliver
+	cmd += fmt.Sprintf(" -adsadapter-addr %v -client-dir %v -mch-ip %v -mch-port %v -bandwidth %v -nodes %v",
+		fc.ADSAdapterAddr, fc.ClientDir, fc.MchIP, fc.MchPort, fc.Bandwidth, nodes)
+
 	cmd += " 2> " + ev.logPath
 	out, err := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
@@ -127,11 +143,12 @@ func DeliverOne(cfg *Config, ev *DeliverEvent) error {
 		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 	if out != "" {
-		if strings.Contains(out, "all failed") == false {
-			err := addServiceContents(cfg.DBAddr, cfg.DBName, cfg.DBUser, cfg.DBPass, ev.file, ev.isHot)
-			if err != nil {
-				return fmt.Errorf("failed to insert into service content table, %v", err)
-			}
+		if strings.Contains(out, "failed") {
+			return fmt.Errorf("failed to deliver, %v", out)
+		}
+		err := addServiceContents(cfg.DBAddr, cfg.DBName, cfg.DBUser, cfg.DBPass, ev.file, ev.isHot)
+		if err != nil {
+			return fmt.Errorf("failed to insert into service content table, %v", err)
 		}
 	}
 	return nil

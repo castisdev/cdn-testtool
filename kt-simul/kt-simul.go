@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"path"
 	"time"
 
 	"github.com/castisdev/cdn-testtool/kt-simul/ktsimul"
@@ -22,6 +23,8 @@ func main() {
 	setLog(cfg.LogDir, "kt-simul", "1.0.0", cfg.LogLevel)
 	cilog.Infof("program started")
 
+	copyFiles(cfg)
+
 	stat := ktsimul.NewProcessingStat()
 	go stat.Start()
 
@@ -30,6 +33,42 @@ func main() {
 	}
 
 	processDelivery(cfg, stat)
+}
+
+func copyFiles(cfg *ktsimul.Config) {
+	aclient := "adsadapter-client"
+	target := path.Join(cfg.RemoteADSAdapterClientDir, aclient)
+	copy, err := ktsimul.RemoteCopyIfNotExists(cfg, aclient, cfg.EADSIP, target)
+	if err != nil {
+		log.Fatalf("failed to remote-copy, %v", err)
+	}
+	if copy {
+		cilog.Infof("remote copied %v to %v", aclient, cfg.EADSIP)
+	}
+
+	for _, file := range cfg.SourceFiles {
+		target := path.Join(cfg.RemoteOriginFileDir, file)
+		copy, err := ktsimul.RemoteCopyIfNotExists(cfg, file, cfg.EADSIP, target)
+		if err != nil {
+			log.Fatalf("failed to remote-copy, %v", err)
+		}
+		if copy {
+			cilog.Infof("remote copied %v to %v", file, cfg.EADSIP)
+		}
+	}
+
+	for _, bin := range cfg.VODClientBins {
+		for _, ip := range cfg.VODClientIPs {
+			target := path.Join(cfg.RemoteVodClientDir, bin)
+			copy, err := ktsimul.RemoteCopyIfNotExists(cfg, bin, ip, target)
+			if err != nil {
+				log.Fatalf("failed to remote-copy, %v", err)
+			}
+			if copy {
+				cilog.Infof("remote copied %v to %v", bin, ip)
+			}
+		}
+	}
 }
 
 func processDelivery(cfg *ktsimul.Config, stat *ktsimul.ProcessingStat) {

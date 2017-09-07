@@ -88,20 +88,6 @@ func SetupOne(cfg *Config, ev *SetupEvent) error {
 	if err != nil {
 		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
-
-	targetBin := path.Join(ev.clientDir, ev.clientBin)
-	cmd = `if [ ! -e ` + targetBin + ` ]; then echo "not exists"; fi`
-
-	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
-	if err != nil {
-		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
-	}
-	if out != "" {
-		err := RemoteCopy(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, ev.clientBin, ev.clientDir)
-		if err != nil {
-			return fmt.Errorf("failed to remote-copy, %v", err)
-		}
-	}
 	protocol := "cirtsp"
 	if ev.isTCP {
 		protocol = "cirtspt"
@@ -110,6 +96,7 @@ func SetupOne(cfg *Config, ev *SetupEvent) error {
 	if playSec == 0 {
 		playSec = 1
 	}
+	targetBin := path.Join(ev.clientDir, ev.clientBin)
 	url := protocol + "://" + glbAddr + "/" + ev.file
 	url += "?p=v1:CV000000000022878657:F:" + ev.dongCode + ":22736884240:N:S3"
 	cmd = targetBin + " " + url + " " + strconv.FormatInt(int64(playSec), 10) + " > " + ev.logPath

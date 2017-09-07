@@ -14,23 +14,25 @@ import (
 
 // Config :
 type Config struct {
-	LogDir                    string        `yaml:"log-dir"`
-	LogLevel                  cilog.Level   `yaml:"log-level"`
-	EADSIP                    string        `yaml:"eads-ip"`
-	Locals                    []LocalConfig `yaml:"locals"`
-	CenterGLBIPs              []string      `yaml:"center-glb-ips"`
-	DBAddr                    string        `yaml:"db-addr"`
-	DBName                    string        `yaml:"db-name"`
-	DBUser                    string        `yaml:"db-user"`
-	DBPass                    string        `yaml:"db-pass"`
-	RemoteVodClientDir        string        `yaml:"remote-vod-client-dir"`
-	RemoteADSAdapterClientDir string        `yaml:"remote-adsadapter-client-dir"`
-	RemoteOriginFileDir       string        `yaml:"remote-origin-file-dir"`
-	VODClientIPs              []string      `yaml:"vod-client-ips"`
-	VODClientBins             []string      `yaml:"vod-client-bins"`
-	DeliverSleep              time.Duration `yaml:"deliver-sleep"`
-	RemoteUser                string        `yaml:"remote-user"`
-	RemotePass                string        `yaml:"remote-pass"`
+	LogDir                    string            `yaml:"log-dir"`
+	LogLevel                  cilog.Level       `yaml:"log-level"`
+	EADSIP                    string            `yaml:"eads-ip"`
+	Locals                    []LocalConfig     `yaml:"locals"`
+	CenterGLBIPs              []string          `yaml:"center-glb-ips"`
+	DBAddr                    string            `yaml:"db-addr"`
+	DBName                    string            `yaml:"db-name"`
+	DBUser                    string            `yaml:"db-user"`
+	DBPass                    string            `yaml:"db-pass"`
+	RemoteVodClientDir        string            `yaml:"remote-vod-client-dir"`
+	RemoteADSAdapterClientDir string            `yaml:"remote-adsadapter-client-dir"`
+	RemoteOriginFileDir       string            `yaml:"remote-origin-file-dir"`
+	VODClientIPs              []string          `yaml:"vod-client-ips"`
+	VODClientBins             []string          `yaml:"vod-client-bins"`
+	RemoteUser                string            `yaml:"remote-user"`
+	RemotePass                string            `yaml:"remote-pass"`
+	SourceFiles               []string          `yaml:"source-files"`
+	FileDeliver               FileDeliverConfig `yaml:"file-deliver"`
+	DeliverSleep              time.Duration     `yaml:"deliver-sleep"`
 }
 
 // LocalConfig :
@@ -39,6 +41,24 @@ type LocalConfig struct {
 	SetupPeriod time.Duration `yaml:"setup-period"`
 	SessionDu   time.Duration `yaml:"session-duration"`
 	DongCode    string        `yaml:"dong-code"`
+}
+
+// FileDeliverConfig :
+type FileDeliverConfig struct {
+	ADSAdapterAddr string `yaml:"adsadapter-addr"`
+	ClientDir      string `yaml:"client-dir"`
+	MchIP          string `yaml:"mch-ip"`
+	MchPort        string `yaml:"mch-port"`
+	Bandwidth      string `yaml:"bandwidth"`
+}
+
+// Holdback0DeliverConfig :
+type Holdback0DeliverConfig struct {
+	InstallerIP string `yaml:"installer-ip"`
+	ClientDir   string `yaml:"client-dir"`
+	MchIP       string `yaml:"mch-ip"`
+	MchPort     string `yaml:"mch-port"`
+	Bandwidth   string `yaml:"bandwidth"`
 }
 
 // NewConfig :
@@ -140,4 +160,27 @@ func RemoteDelete(cfg *Config, clientIP, filepath string) error {
 	cmd := "rm " + filepath
 	_, err := RemoteRun(clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	return err
+}
+
+// RemoteCopyIfNotExists :
+func RemoteCopyIfNotExists(cfg *Config, srcFilepath, destIP, destFilepath string) (copy bool, err error) {
+	cmd := "mkdir -p " + path.Dir(destFilepath)
+	out, err := RemoteRun(destIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	if err != nil {
+		return false, fmt.Errorf("failed to remote-run %v, %v", cmd, err)
+	}
+
+	cmd = `if [ ! -e ` + destFilepath + ` ]; then echo "not exists"; fi`
+	out, err = RemoteRun(destIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	if err != nil {
+		return false, fmt.Errorf("failed to remote-run %v, %v", cmd, err)
+	}
+	if out != "" {
+		err := RemoteCopy(destIP, cfg.RemoteUser, cfg.RemotePass, srcFilepath, path.Dir(destFilepath))
+		if err != nil {
+			return false, fmt.Errorf("failed to remote-copy, %v", err)
+		}
+		return true, nil
+	}
+	return false, nil
 }

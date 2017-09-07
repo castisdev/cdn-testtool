@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"io"
@@ -25,20 +26,31 @@ const (
 )
 
 func main() {
-	var cfgFile, orgFile, targetFile string
-	var centerOnly bool
-	flag.StringVar(&cfgFile, "cfg", "cfg.yml", "config file")
+	var orgFile, targetFile, adsaAddr, clientDir, mchIP, mchPort, nodes string
+	var bandwidth int64
 	flag.StringVar(&orgFile, "org-file", "org.mpg", "original file to deliver")
 	flag.StringVar(&targetFile, "target-file", "", "target file name")
-	flag.BoolVar(&centerOnly, "center", false, "if true, target will be only center")
+	flag.StringVar(&adsaAddr, "adsadapter-addr", "127.0.0.1:8083", "ADSAdapter listen address")
+	flag.StringVar(&clientDir, "client-dir", "/data2/upload2", "target directory")
+	flag.StringVar(&mchIP, "mch-ip", "239.0.1.11", "multicast channel ip")
+	flag.StringVar(&mchPort, "mch-port", "5011", "multicast channel port")
+	flag.Int64Var(&bandwidth, "bandwidth", 50000000, "bandwidth")
+	flag.StringVar(&nodes, "nodes", "", "node ip list (ex)172.16.3.1,172.16.3.2")
 	flag.Parse()
 
-	cfg, err := NewConfig(cfgFile)
-	if err != nil {
-		log.Fatal(err)
+	cfg := &Config{
+		AdsadapterAddr:       adsaAddr,
+		Bandwidth:            bandwidth,
+		ClientDir:            clientDir,
+		MulticastChannelIP:   mchIP,
+		MulticastChannelPort: mchPort,
 	}
-	cfgBytes, _ := yaml.Marshal(cfg)
-	log.Printf("config loaded\n%s", cfgBytes)
+	r := csv.NewReader(strings.NewReader(nodes))
+	records, err := r.Read()
+	if err != nil {
+		log.Fatalf("failed to parse nodes option %v, %v", nodes, err)
+	}
+	cfg.Node = records
 
 	begT := time.Now()
 	assetID := DetailedTimeToStr(time.Now())
@@ -51,7 +63,7 @@ func main() {
 			assetID = file
 		}
 	}
-	reply, srcFile, err := FileTransfer(cfg, orgFile, assetID, file, centerOnly)
+	reply, srcFile, err := FileTransfer(cfg, orgFile, assetID, file)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,7 +142,7 @@ func CopyFile(dst, src string) error {
 }
 
 // FileTransfer :
-func FileTransfer(cfg *Config, orgFile, assetID, file string, centerOnly bool) (reply string, srcFile string, e error) {
+func FileTransfer(cfg *Config, orgFile, assetID, file string) (reply string, srcFile string, e error) {
 	curDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		return "", "", err
@@ -182,13 +194,8 @@ NODE_INFOS
 	xml = strings.Replace(xml, "CLIENT_DIR", cfg.ClientDir, -1)
 
 	nodes := ""
-	for _, v := range cfg.Center {
+	for _, v := range cfg.Node {
 		nodes += `<Node_Information ADC_IP="` + v + `" LSM_IP="` + v + `"/>` + "\n"
-	}
-	if centerOnly == false {
-		for _, v := range cfg.Node {
-			nodes += `<Node_Information ADC_IP="` + v + `" LSM_IP="` + v + `"/>` + "\n"
-		}
 	}
 	if nodes == "" {
 		return "", "", fmt.Errorf("not exist node info, check center-ips/node-ips config")

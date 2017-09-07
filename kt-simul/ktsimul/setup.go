@@ -22,11 +22,13 @@ type SetupEvent struct {
 	isHot     bool
 	isTCP     bool
 	sessionDu time.Duration
+	dongCode  string
 }
 
 func (ev SetupEvent) String() string {
-	return fmt.Sprintf("client(%v %v %v log:%v) %v glb(%v) isHot(%v) isTCP(%v) duration(%d)",
-		ev.clientIP, ev.clientDir, ev.clientBin, path.Base(ev.logPath), ev.file, ev.glbIP, ev.isHot, ev.isTCP, int64(ev.sessionDu.Seconds()))
+	return fmt.Sprintf("client(%v %v %v log:%v) %v glb(%v) isHot(%v) isTCP(%v) duration(%d) dongcode(%s)",
+		ev.clientIP, ev.clientDir, ev.clientBin, path.Base(ev.logPath), ev.file, ev.glbIP, ev.isHot,
+		ev.isTCP, int64(ev.sessionDu.Seconds()), ev.dongCode)
 }
 
 // RunSetupOne :
@@ -54,6 +56,7 @@ func RunSetupOne(cfg *Config, localCfg LocalConfig) error {
 		isHot:     isHot,
 		isTCP:     (rand.Intn(10) == 0),
 		sessionDu: localCfg.SessionDu,
+		dongCode:  localCfg.DongCode,
 	}
 	cilog.Infof("start session: %s", ev)
 
@@ -107,7 +110,9 @@ func SetupOne(cfg *Config, ev *SetupEvent) error {
 	if playSec == 0 {
 		playSec = 1
 	}
-	cmd = targetBin + " " + protocol + "://" + glbAddr + "/" + ev.file + " " + strconv.FormatInt(int64(playSec), 10) + " > " + ev.logPath
+	url := protocol + "://" + glbAddr + "/" + ev.file
+	url += "?p=v1:CV000000000022878657:F:" + ev.dongCode + ":22736884240:N:S3"
+	cmd = targetBin + " " + url + " " + strconv.FormatInt(int64(playSec), 10) + " > " + ev.logPath
 	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)

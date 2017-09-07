@@ -38,6 +38,7 @@ type LocalConfig struct {
 	GLBIP       string        `yaml:"glb-ip"`
 	SetupPeriod time.Duration `yaml:"setup-period"`
 	SessionDu   time.Duration `yaml:"session-duration"`
+	DongCode    string        `yaml:"dong-code"`
 }
 
 // NewConfig :

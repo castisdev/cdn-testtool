@@ -64,7 +64,7 @@ func RunSetupOne(cfg *Config, localCfg LocalConfig) error {
 
 	cilog.Infof("end session: %s, error(%v)", path.Base(ev.logPath), err != nil)
 	if err != nil {
-		cmd := "tail -5 " + ev.logPath
+		cmd := "cat " + ev.logPath
 		out, e := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 		if e == nil {
 			return fmt.Errorf("failed to setup %v, %v\n%v %v\n%v", ev.file, err, ev.clientIP, ev.logPath, out)

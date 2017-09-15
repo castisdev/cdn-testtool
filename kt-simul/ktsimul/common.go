@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/castisdev/cilog"
@@ -14,25 +15,21 @@ import (
 
 // Config :
 type Config struct {
-	LogDir                    string            `yaml:"log-dir"`
-	LogLevel                  cilog.Level       `yaml:"log-level"`
-	EADSIP                    string            `yaml:"eads-ip"`
-	Locals                    []LocalConfig     `yaml:"locals"`
-	CenterGLBIPs              []string          `yaml:"center-glb-ips"`
-	DBAddr                    string            `yaml:"db-addr"`
-	DBName                    string            `yaml:"db-name"`
-	DBUser                    string            `yaml:"db-user"`
-	DBPass                    string            `yaml:"db-pass"`
-	RemoteVodClientDir        string            `yaml:"remote-vod-client-dir"`
-	RemoteADSAdapterClientDir string            `yaml:"remote-adsadapter-client-dir"`
-	RemoteOriginFileDir       string            `yaml:"remote-origin-file-dir"`
-	VODClientIPs              []string          `yaml:"vod-client-ips"`
-	VODClientBins             []string          `yaml:"vod-client-bins"`
-	RemoteUser                string            `yaml:"remote-user"`
-	RemotePass                string            `yaml:"remote-pass"`
-	SourceFiles               []string          `yaml:"source-files"`
-	FileDeliver               FileDeliverConfig `yaml:"file-deliver"`
-	DeliverSleep              time.Duration     `yaml:"deliver-sleep"`
+	LogDir             string                 `yaml:"log-dir"`
+	LogLevel           cilog.Level            `yaml:"log-level"`
+	Locals             []LocalConfig          `yaml:"locals"`
+	CenterGLBIPs       []string               `yaml:"center-glb-ips"`
+	DBAddr             string                 `yaml:"db-addr"`
+	DBName             string                 `yaml:"db-name"`
+	DBUser             string                 `yaml:"db-user"`
+	DBPass             string                 `yaml:"db-pass"`
+	RemoteVodClientDir string                 `yaml:"remote-vod-client-dir"`
+	VODClientIPs       []string               `yaml:"vod-client-ips"`
+	VODClientBins      []string               `yaml:"vod-client-bins"`
+	RemoteUser         string                 `yaml:"remote-user"`
+	RemotePass         string                 `yaml:"remote-pass"`
+	FileDeliver        FileDeliverConfig      `yaml:"file-deliver"`
+	HBDeliver          Holdback0DeliverConfig `yaml:"holdback0-deliver"`
 }
 
 // LocalConfig :
@@ -45,20 +42,33 @@ type LocalConfig struct {
 
 // FileDeliverConfig :
 type FileDeliverConfig struct {
-	ADSAdapterAddr string `yaml:"adsadapter-addr"`
-	ClientDir      string `yaml:"client-dir"`
-	MchIP          string `yaml:"mch-ip"`
-	MchPort        string `yaml:"mch-port"`
-	Bandwidth      string `yaml:"bandwidth"`
+	ADSAdapterAddr            string        `yaml:"adsadapter-addr"`
+	RemoteSourceFileDir       string        `yaml:"remote-source-file-dir"`
+	RemoteADSAdapterClientDir string        `yaml:"remote-adsadapter-client-dir"`
+	ClientDir                 string        `yaml:"client-dir"`
+	MchIP                     string        `yaml:"mch-ip"`
+	MchPort                   string        `yaml:"mch-port"`
+	Bandwidth                 string        `yaml:"bandwidth"`
+	SourceFiles               []string      `yaml:"source-files"`
+	Sleep                     time.Duration `yaml:"sleep"`
+}
+
+// AdsIP :
+func (f *FileDeliverConfig) AdsIP() string {
+	return f.ADSAdapterAddr[0:strings.Index(f.ADSAdapterAddr, ":")]
 }
 
 // Holdback0DeliverConfig :
 type Holdback0DeliverConfig struct {
-	InstallerIP string `yaml:"installer-ip"`
-	ClientDir   string `yaml:"client-dir"`
-	MchIP       string `yaml:"mch-ip"`
-	MchPort     string `yaml:"mch-port"`
-	Bandwidth   string `yaml:"bandwidth"`
+	InstallerIP         string        `yaml:"assetinstaller-ip"`
+	ImportDir           string        `yaml:"import-dir"`
+	LoadedDir           string        `yaml:"loaded-dir"`
+	ErrorDir            string        `yaml:"error-dir"`
+	Channels            []string      `yaml:"channels"`
+	RemoteSourceFileDir string        `yaml:"remote-source-file-dir"`
+	RemoteHBClientDir   string        `yaml:"remote-hb-client-dir"`
+	SourceFiles         []string      `yaml:"source-files"`
+	Sleep               time.Duration `yaml:"sleep"`
 }
 
 // NewConfig :

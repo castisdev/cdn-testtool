@@ -75,13 +75,13 @@ func RunDeliverOne(cfg *Config, stat *ProcessingStat) error {
 	t := time.Now().Format(layout)
 	targetFile := t + ".mpg"
 
-	dir := cfg.RemoteADSAdapterClientDir
+	dir := cfg.FileDeliver.RemoteADSAdapterClientDir
 	logDir := path.Join(dir, "log")
 	logPath := path.Join(logDir, t+".log")
 
 	ev := &DeliverEvent{
-		clientIP:  cfg.EADSIP,
-		clientDir: cfg.RemoteADSAdapterClientDir,
+		clientIP:  cfg.FileDeliver.AdsIP(),
+		clientDir: cfg.FileDeliver.RemoteADSAdapterClientDir,
 		file:      targetFile,
 		logPath:   logPath,
 		isHot:     IsHotForDeliver(),
@@ -172,16 +172,16 @@ func IsHotForDeliver() bool {
 
 // OrgFileForDeliver :
 func OrgFileForDeliver(cfg *Config) (string, error) {
-	cmd := "ls " + cfg.RemoteOriginFileDir
-	out, err := RemoteRun(cfg.EADSIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	cmd := "ls " + cfg.FileDeliver.RemoteSourceFileDir
+	out, err := RemoteRun(cfg.FileDeliver.AdsIP(), cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return "", fmt.Errorf("failed to remote-run, %v", err)
 	}
 	files := strings.Fields(out)
 	if len(files) == 0 {
-		return "", fmt.Errorf("not exists original files in %v %v", cfg.EADSIP, cfg.RemoteOriginFileDir)
+		return "", fmt.Errorf("not exists original files in %v %v", cfg.FileDeliver.AdsIP(), cfg.FileDeliver.RemoteSourceFileDir)
 	}
-	return path.Join(cfg.RemoteOriginFileDir, files[rand.Intn(len(files))]), nil
+	return path.Join(cfg.FileDeliver.RemoteSourceFileDir, files[rand.Intn(len(files))]), nil
 }
 
 func addServiceContents(dbAddr, dbName, dbUser, dbPass, file string, isHot bool) error {

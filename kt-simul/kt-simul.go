@@ -32,28 +32,51 @@ func main() {
 		go processSetupForLocal(cfg, v, stat)
 	}
 
+	go processHBDelivery(cfg, stat)
 	processDelivery(cfg, stat)
 }
 
 func copyFiles(cfg *ktsimul.Config) {
+	adsIP := cfg.FileDeliver.AdsIP()
 	aclient := "adsadapter-client"
-	target := path.Join(cfg.RemoteADSAdapterClientDir, aclient)
-	copy, err := ktsimul.RemoteCopyIfNotExists(cfg, aclient, cfg.EADSIP, target)
+	target := path.Join(cfg.FileDeliver.RemoteADSAdapterClientDir, aclient)
+	copy, err := ktsimul.RemoteCopyIfNotExists(cfg, aclient, adsIP, target)
 	if err != nil {
 		log.Fatalf("failed to remote-copy, %v", err)
 	}
 	if copy {
-		cilog.Infof("remote copied %v to %v", aclient, cfg.EADSIP)
+		cilog.Infof("remote copied %v to %v", aclient, adsIP)
 	}
 
-	for _, file := range cfg.SourceFiles {
-		target := path.Join(cfg.RemoteOriginFileDir, file)
-		copy, err := ktsimul.RemoteCopyIfNotExists(cfg, file, cfg.EADSIP, target)
+	for _, file := range cfg.FileDeliver.SourceFiles {
+		target := path.Join(cfg.FileDeliver.RemoteSourceFileDir, path.Base(file))
+		copy, err := ktsimul.RemoteCopyIfNotExists(cfg, file, adsIP, target)
 		if err != nil {
 			log.Fatalf("failed to remote-copy, %v", err)
 		}
 		if copy {
-			cilog.Infof("remote copied %v to %v", file, cfg.EADSIP)
+			cilog.Infof("remote copied %v to %v", file, adsIP)
+		}
+	}
+
+	hclient := "hbdeliver-client"
+	target = path.Join(cfg.HBDeliver.RemoteHBClientDir, hclient)
+	copy, err = ktsimul.RemoteCopyIfNotExists(cfg, hclient, cfg.HBDeliver.InstallerIP, target)
+	if err != nil {
+		log.Fatalf("failed to remote-copy, %v", err)
+	}
+	if copy {
+		cilog.Infof("remote copied %v to %v", hclient, cfg.HBDeliver.InstallerIP)
+	}
+
+	for _, file := range cfg.HBDeliver.SourceFiles {
+		target := path.Join(cfg.HBDeliver.RemoteSourceFileDir, path.Base(file))
+		copy, err := ktsimul.RemoteCopyIfNotExists(cfg, file, cfg.HBDeliver.InstallerIP, target)
+		if err != nil {
+			log.Fatalf("failed to remote-copy, %v", err)
+		}
+		if copy {
+			cilog.Infof("remote copied %v to %v", file, adsIP)
 		}
 	}
 
@@ -73,10 +96,20 @@ func copyFiles(cfg *ktsimul.Config) {
 
 func processDelivery(cfg *ktsimul.Config, stat *ktsimul.ProcessingStat) {
 	for {
-		<-time.After(cfg.DeliverSleep)
+		<-time.After(cfg.FileDeliver.Sleep)
 		err := ktsimul.RunDeliverOne(cfg, stat)
 		if err != nil {
 			cilog.Errorf("failed to deliver, %v", err)
+		}
+	}
+}
+
+func processHBDelivery(cfg *ktsimul.Config, stat *ktsimul.ProcessingStat) {
+	for {
+		<-time.After(cfg.HBDeliver.Sleep)
+		err := ktsimul.RunHBDeliverOne(cfg, stat)
+		if err != nil {
+			cilog.Errorf("failed to holdback0 deliver, %v", err)
 		}
 	}
 }

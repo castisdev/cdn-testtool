@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -16,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/castisdev/cdn-testtool/common"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -121,26 +121,6 @@ func sendXML(addr, xml string) (string, error) {
 	return string(reply[1 : len(reply)-1]), nil
 }
 
-// CopyFile :
-func CopyFile(dst, src string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	cerr := out.Close()
-	if err != nil {
-		return err
-	}
-	return cerr
-}
-
 // FileTransfer :
 func FileTransfer(cfg *Config, orgFile, assetID, file string) (reply string, srcFile string, e error) {
 	curDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -151,7 +131,7 @@ func FileTransfer(cfg *Config, orgFile, assetID, file string) (reply string, src
 	if _, err := os.Stat(mpgDir); os.IsNotExist(err) {
 		os.MkdirAll(mpgDir, 0755)
 	}
-	if err = CopyFile(filepath.Join(mpgDir, file), orgFile); err != nil {
+	if err = common.CopyFile(filepath.Join(mpgDir, file), orgFile); err != nil {
 		return "", "", err
 	}
 	fi, err := os.Stat(filepath.Join(mpgDir, file))

@@ -66,6 +66,12 @@ func DeleteOne(cfg *Config, ev *DeleteEvent) error {
 		}
 		nodes += v
 	}
+	for _, v := range cfg.FrozenLSMIPs {
+		if nodes != "" {
+			nodes += ","
+		}
+		nodes += v
+	}
 	for _, v := range cfg.Locals {
 		if nodes != "" {
 			nodes += ","

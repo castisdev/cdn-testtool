@@ -19,6 +19,7 @@ type Config struct {
 	LogLevel           cilog.Level            `yaml:"log-level"`
 	Locals             []LocalConfig          `yaml:"locals"`
 	CenterGLBIPs       []string               `yaml:"center-glb-ips"`
+	FrozenLSMIPs       []string               `yaml:"frozen-lsm-ips"`
 	DBAddr             string                 `yaml:"db-addr"`
 	DBName             string                 `yaml:"db-name"`
 	DBUser             string                 `yaml:"db-user"`

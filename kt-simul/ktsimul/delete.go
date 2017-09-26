@@ -107,7 +107,7 @@ func selectDeleteFile(cfg *Config) (string, error) {
 		return "", err
 	}
 	defer db.Close()
-	rows, err := db.Query("SELECT file FROM service_content where is_hot = 1 ORDER BY RAND() LIMIT 1")
+	rows, err := db.Query("SELECT file FROM service_content where is_hot = 0 ORDER BY RAND() LIMIT 1")
 	if err != nil {
 		return "", err
 	}

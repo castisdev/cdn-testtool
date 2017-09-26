@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/csv"
+	"encoding/xml"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -26,7 +27,7 @@ const (
 )
 
 func main() {
-	var orgFile, targetFile, adsaAddr, clientDir, mchIP, mchPort, nodes string
+	var orgFile, targetFile, adsaAddr, clientDir, mchIP, mchPort, nodes, delFile string
 	var bandwidth int64
 	flag.StringVar(&orgFile, "org-file", "org.mpg", "original file to deliver")
 	flag.StringVar(&targetFile, "target-file", "", "target file name")
@@ -36,7 +37,24 @@ func main() {
 	flag.StringVar(&mchPort, "mch-port", "5011", "multicast channel port")
 	flag.Int64Var(&bandwidth, "bandwidth", 50000000, "bandwidth")
 	flag.StringVar(&nodes, "nodes", "", "node ip list (ex)172.16.3.1,172.16.3.2")
+	flag.StringVar(&delFile, "del-file", "", "file name to delete, needs adsadapter-addr/client-dir/nodes")
 	flag.Parse()
+
+	r := csv.NewReader(strings.NewReader(nodes))
+	records, err := r.Read()
+	if err != nil {
+		log.Fatalf("failed to parse nodes option %v, %v", nodes, err)
+	}
+
+	if delFile != "" {
+		err := DeleteFile(adsaAddr, delFile, clientDir, records)
+		if err != nil {
+			log.Printf("failed to delete file %v, %v", delFile, err)
+		} else {
+			log.Printf("success to delete %v", delFile)
+		}
+		os.Exit(0)
+	}
 
 	cfg := &Config{
 		AdsadapterAddr:       adsaAddr,
@@ -44,11 +62,6 @@ func main() {
 		ClientDir:            clientDir,
 		MulticastChannelIP:   mchIP,
 		MulticastChannelPort: mchPort,
-	}
-	r := csv.NewReader(strings.NewReader(nodes))
-	records, err := r.Read()
-	if err != nil {
-		log.Fatalf("failed to parse nodes option %v, %v", nodes, err)
 	}
 	cfg.Node = records
 
@@ -142,7 +155,7 @@ func FileTransfer(cfg *Config, orgFile, assetID, file string) (reply string, src
 	xml := `<?xml version="1.0" encoding="UTF-8"?>
 <eADS>
 <Job>
-<Job_Name>castis sync task</Job_Name>
+<Job_Name>adsadapter-client FileTransfer</Job_Name>
 <Command_Date>DATETIME</Command_Date>
 <Command Type="FileTransfer">
 <Command_Data Name="Transfer_Mode_Priority" Value="1" /> 
@@ -204,7 +217,7 @@ func FileTransferStatus(addr, trid string) (string, error) {
 	xml := `<?xml version="1.0" encoding="UTF-8"?>
 <eADS>
 	<Job>
-		<Job_Name>castis sync task</Job_Name>
+		<Job_Name>adsadapter-client FileTransferStatus</Job_Name>
 		<Command_Date>DATETIME</Command_Date>
 		<Command Type="FileTransferStatus">
 			<Command_Data Name="Transaction_ID" Value="TRID" /> 
@@ -309,10 +322,72 @@ func TransactionID(reply string) string {
 	return trid
 }
 
+// DeleteFile :
+func DeleteFile(adsaAddr, fname, clientDir string, nodes []string) error {
+	asset := fname[:len(fname)-len(filepath.Ext(fname))]
+	nodesStr := ""
+	for _, v := range nodes {
+		nodesStr += fmt.Sprintf(`<Node_Information ADC_IP="%s" LSM_IP="%s" />`, v, v) + "\n"
+	}
+
+	frame := `<?xml version="1.0" encoding="euc-kr" standalone="yes"?>
+<eADS>
+<Job>
+<Job_Name>adsadapter-client DeteFileInClient</Job_Name>
+<Command_Date>2017-05-05</Command_Date>
+<Command Type="DeleteFileInClient">
+<Command_Data Name="Asset_ID" Value="%s"></Command_Data>
+<Command_Data Name="File_Name" Value="%s"></Command_Data>
+<Command_Data Name="Client_Directory" Value="%s"></Command_Data>
+%s
+</Command>
+</Job>
+</eADS>
+`
+	reqXML := fmt.Sprintf(frame, asset, fname, clientDir, nodesStr)
+	res, err := sendXML(adsaAddr, reqXML)
+	if err != nil {
+		return err
+	}
+	fmt.Println(res)
+
+	type Response struct {
+		XMLName xml.Name `xml:"eADS"`
+		Job     struct {
+			Report struct {
+				Node []struct {
+					AdcIP   string `xml:"ADC_IP,attr"`
+					LsmIP   string `xml:"LSM_IP,attr"`
+					ErrCode string `xml:"Error_Code,attr"`
+					ErrStr  string `xml:"Error_String,attr"`
+					Status  string `xml:"Status,attr"`
+				} `xml:"Node_Information"`
+			} `xml:"Report"`
+		} `xml:"Job"`
+	}
+	var resXML Response
+	err = xml.Unmarshal([]byte(res), &resXML)
+	if err != nil {
+		log.Fatalf("failed to unmarshal response xml, %v", err)
+	}
+
+	statusMsg := ""
+	existsErr := false
+	for _, v := range resXML.Job.Report.Node {
+		statusMsg += fmt.Sprintf(", %s(%s,%s)", v.AdcIP, v.Status, v.ErrStr)
+		if v.Status != "FileDeleted" {
+			existsErr = true
+		}
+	}
+	if existsErr {
+		return fmt.Errorf("failed to delete %v%v", fname, statusMsg)
+	}
+	return nil
+}
+
 // Config :
 type Config struct {
 	AdsadapterAddr       string   `yaml:"adsadapter-addr"`
-	Center               []string `yaml:"center-ips"`
 	Node                 []string `yaml:"node-ips"`
 	Bandwidth            int64    `yaml:"bandwidth"`
 	ClientDir            string   `yaml:"client-dir"`
@@ -331,8 +406,8 @@ func NewConfig(ymlPath string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("yaml unmarshal error: %v", err)
 	}
-	if len(cfg.Center) == 0 && len(cfg.Node) == 0 {
-		return nil, fmt.Errorf("center-ips, node-ips setting not exists")
+	if len(cfg.Node) == 0 {
+		return nil, fmt.Errorf("node-ips setting not exists")
 	}
 	return cfg, nil
 }

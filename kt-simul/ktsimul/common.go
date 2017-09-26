@@ -30,6 +30,7 @@ type Config struct {
 	RemotePass         string                 `yaml:"remote-pass"`
 	FileDeliver        FileDeliverConfig      `yaml:"file-deliver"`
 	HBDeliver          Holdback0DeliverConfig `yaml:"holdback0-deliver"`
+	Delete             DeleteConfig           `yaml:"delete-file"`
 }
 
 // LocalConfig :
@@ -69,6 +70,19 @@ type Holdback0DeliverConfig struct {
 	RemoteHBClientDir   string        `yaml:"remote-hb-client-dir"`
 	SourceFiles         []string      `yaml:"source-files"`
 	Sleep               time.Duration `yaml:"sleep"`
+}
+
+// DeleteConfig :
+type DeleteConfig struct {
+	ADSAdapterAddr            string        `yaml:"adsadapter-addr"`
+	RemoteADSAdapterClientDir string        `yaml:"remote-adsadapter-client-dir"`
+	ClientDir                 string        `yaml:"client-dir"`
+	Sleep                     time.Duration `yaml:"sleep"`
+}
+
+// AdsIP :
+func (f *DeleteConfig) AdsIP() string {
+	return f.ADSAdapterAddr[0:strings.Index(f.ADSAdapterAddr, ":")]
 }
 
 // NewConfig :

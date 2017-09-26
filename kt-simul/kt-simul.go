@@ -33,6 +33,7 @@ func main() {
 	}
 
 	go processHBDelivery(cfg, stat)
+	go processDeleteFile(cfg, stat)
 	processDelivery(cfg, stat)
 }
 
@@ -123,5 +124,15 @@ func processSetupForLocal(cfg *ktsimul.Config, localCfg ktsimul.LocalConfig, sta
 				cilog.Errorf("failed to setup, %v", err)
 			}
 		}()
+	}
+}
+
+func processDeleteFile(cfg *ktsimul.Config, stat *ktsimul.ProcessingStat) {
+	for {
+		<-time.After(cfg.Delete.Sleep)
+		err := ktsimul.RunDeleteOne(cfg, stat)
+		if err != nil {
+			cilog.Errorf("failed to delete file, %v", err)
+		}
 	}
 }

@@ -3,8 +3,6 @@ db-name: db
 db-user: foo
 db-pass: bar
 remote-vod-client-dir: /home/castis/kt-simul/vodclient
-remote-adsadapter-client-dir: /home/castis/kt-simul/adsa-client
-remote-origin-file-dir: /home/castis/kt-simul/adsa-client/orgfile
 remote-user: foo
 remote-pass: bar
 deliver-sleep: 30s
@@ -32,6 +30,8 @@ locals:
 
 file-deliver:
   adsadapter-addr: 172.16.110.202:8083
+  remote-adsadapter-client-dir: /home/castis/kt-simul/adsa-client
+  remote-origin-file-dir: /home/castis/kt-simul/adsa-client/orgfile
   client-dir: /data2/upload2
   mch-ip: 239.0.1.11
   mch-port: 5011
@@ -54,6 +54,11 @@ hb-deliver:
   remote-hb-client-dir: /home/castis/kt-simul/hbclient
   sleep: 1m
   source-files:
-  - 1.2Mbps-5m-noindex.mpg
-  - 6.5Mbps-22s-noindex.mpg
+    - 1.2Mbps-5m-noindex.mpg
+    - 6.5Mbps-22s-noindex.mpg
 
+delete-file:
+  adsadapter-addr: 172.16.110.202:8083
+  remote-adsadapter-client-dir: /home/castis/kt-simul/adsa-client
+  client-dir: /data2/
+  sleep: 1m

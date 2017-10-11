@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"path"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/castisdev/cilog"
@@ -140,10 +142,23 @@ func serviceFiles(db *sql.DB, limitN int, isHot bool) ([]string, error) {
 	return files, nil
 }
 
+var setupHotQueue []bool
+var setupHotQueueCurIdx uint32
+
+func isHotForSetup() bool {
+	if setupHotQueue == nil {
+		setupHotQueue = []bool{true, true, false, true, true, true, false, true, true, true}
+	}
+	idx := atomic.AddUint32(&setupHotQueueCurIdx, 1) % uint32(len(setupHotQueue))
+	ret := setupHotQueue[idx]
+	return ret
+}
+
 var setupHotFileQueue []string
 var setupColdFileQueue []string
 var setupHotFileCurIdx int
 var setupColdFileCurIdx int
+var setupFileLock sync.RWMutex
 
 func updateFilesForSetup(dbAddr, dbName, dbUser, dbPass string) error {
 	db, err := sql.Open("mysql", fmt.Sprintf("%v:%v@tcp(%v)/%v", dbUser, dbPass, dbAddr, dbName))
@@ -168,22 +183,9 @@ func updateFilesForSetup(dbAddr, dbName, dbUser, dbPass string) error {
 	return nil
 }
 
-var setupHotQueue []bool
-var setupHotQueueCurIdx int
-
-func isHotForSetup() bool {
-	if setupHotQueue == nil {
-		setupHotQueue = []bool{true, true, false, true, true, true, false, true, true, true}
-	}
-	ret := setupHotQueue[setupHotQueueCurIdx]
-	setupHotQueueCurIdx++
-	if setupHotQueueCurIdx >= len(setupHotQueue) {
-		setupHotQueueCurIdx = 0
-	}
-	return ret
-}
-
 func fileForSetup(dbAddr, dbName, dbUser, dbPass string, isHot bool) (string, error) {
+	setupFileLock.Lock()
+	defer setupFileLock.Unlock()
 	file := ""
 	if setupHotFileCurIdx >= len(setupHotFileQueue) || setupColdFileCurIdx >= len(setupColdFileQueue) {
 		err := updateFilesForSetup(dbAddr, dbName, dbUser, dbPass)

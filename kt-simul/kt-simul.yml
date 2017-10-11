@@ -44,7 +44,6 @@ file-deliver:
   - 1.2Mbps-5m-index.mpg
   - 3Mbps-5m-index.mpg
 
-
 hb-deliver:
   assetinstaller-ip: 172.16.234.18
   import-dir: /data2/import

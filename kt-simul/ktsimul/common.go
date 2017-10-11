@@ -20,6 +20,7 @@ type Config struct {
 	Locals             []LocalConfig          `yaml:"locals"`
 	CenterGLBIPs       []string               `yaml:"center-glb-ips"`
 	FrozenLSMIPs       []string               `yaml:"frozen-lsm-ips"`
+	EtcIPs             []string               `yaml:"etc-ips"`
 	DBAddr             string                 `yaml:"db-addr"`
 	DBName             string                 `yaml:"db-name"`
 	DBUser             string                 `yaml:"db-user"`
@@ -84,6 +85,17 @@ type DeleteConfig struct {
 // AdsIP :
 func (f *DeleteConfig) AdsIP() string {
 	return f.ADSAdapterAddr[0:strings.Index(f.ADSAdapterAddr, ":")]
+}
+
+// LsmIPs :
+func (c *Config) LsmIPs() []string {
+	var lsmIPs []string
+	lsmIPs = append(lsmIPs, c.CenterGLBIPs...)
+	lsmIPs = append(lsmIPs, c.FrozenLSMIPs...)
+	for _, v := range c.Locals {
+		lsmIPs = append(lsmIPs, v.GLBIP)
+	}
+	return lsmIPs
 }
 
 // NewConfig :

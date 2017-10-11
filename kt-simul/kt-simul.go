@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
 	"path"
 	"time"
@@ -15,9 +17,25 @@ func setLog(dir, module, moduleVersion string, minLevel cilog.Level) {
 }
 
 func main() {
+	var isTest bool
+	flag.BoolVar(&isTest, "test", false, "run test mode")
+	flag.Parse()
+
 	cfg, err := ktsimul.NewConfig("kt-simul.yml")
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if isTest {
+		cilog.SetMinLevel(cilog.INFO)
+		fmt.Print("check ip in config ...\n\n")
+		result, okIPs := ktsimul.TestCfgIPs(cfg)
+		fmt.Println(result)
+
+		fmt.Print("check LSM in config ...\n\n")
+		result = ktsimul.TestLSMs(cfg, okIPs)
+		fmt.Println(result)
+		return
 	}
 
 	setLog(cfg.LogDir, "kt-simul", "1.0.0", cfg.LogLevel)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/castisdev/cdn-testtool/kt-simul/remote"
 	"github.com/paulstuart/ping"
 )
 
@@ -44,7 +45,7 @@ func TestIP(cfg *Config, ip string) error {
 	timeoutSec := 1
 	if ping.Ping(ip, timeoutSec) {
 		cmd := "uname -a"
-		_, err := RemoteRun(ip, cfg.RemoteUser, cfg.RemotePass, cmd)
+		_, err := remote.Run(ip, cfg.RemoteUser, cfg.RemotePass, cmd)
 		if err != nil {
 			return fmt.Errorf("ssh error, %v", err)
 		}
@@ -94,7 +95,7 @@ func TestLSMs(cfg *Config, ipOKlist []string) string {
 
 // TestLSMOne :
 func TestLSMOne(cfg *Config, ip string) (vods []string, er error) {
-	out, err := RemoteRun(ip, cfg.RemoteUser, cfg.RemotePass, getVodScript)
+	out, err := remote.Run(ip, cfg.RemoteUser, cfg.RemotePass, getVodScript)
 	if err != nil {
 		return nil, fmt.Errorf("%v(ssh error,%v)", ip, err)
 	}

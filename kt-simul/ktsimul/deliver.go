@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/castisdev/cdn-testtool/kt-simul/remote"
 	"github.com/castisdev/cilog"
 )
 
@@ -94,13 +95,13 @@ func RunDeliverOne(cfg *Config, stat *ProcessingStat) error {
 	cilog.Infof("end deliver : %s error(%v)", ev.file, err != nil)
 	if err != nil {
 		cmd := "tail -5 " + ev.logPath
-		out, e := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+		out, e := remote.Run(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 		if e == nil {
 			return fmt.Errorf("failed to deliver %v, %v\n%v %v\n%v", ev.file, err, ev.clientIP, ev.logPath, out)
 		}
 		return fmt.Errorf("failed to deliver %v, %v", ev.file, err)
 	}
-	if err := RemoteDelete(cfg, ev.clientIP, ev.logPath); err != nil {
+	if err := remote.Delete(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, ev.logPath); err != nil {
 		return fmt.Errorf("failed to delete %v %v, %v", ev.clientIP, ev.logPath, err)
 	}
 
@@ -132,13 +133,13 @@ func DeliverOne(cfg *Config, ev *DeliverEvent) error {
 		fc.ADSAdapterAddr, fc.ClientDir, fc.MchIP, fc.MchPort, fc.Bandwidth, nodes)
 
 	cmd += " 2> " + ev.logPath
-	out, err := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err := remote.Run(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 
 	cmd = "grep completed " + ev.logPath
-	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err = remote.Run(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
@@ -173,7 +174,7 @@ func IsHotForDeliver() bool {
 // OrgFileForDeliver :
 func OrgFileForDeliver(cfg *Config) (string, error) {
 	cmd := "ls " + cfg.FileDeliver.RemoteSourceFileDir
-	out, err := RemoteRun(cfg.FileDeliver.AdsIP(), cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err := remote.Run(cfg.FileDeliver.AdsIP(), cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return "", fmt.Errorf("failed to remote-run, %v", err)
 	}

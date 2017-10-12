@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/castisdev/cdn-testtool/kt-simul/remote"
 	"github.com/castisdev/cilog"
 )
 
@@ -55,13 +56,13 @@ func RunHBDeliverOne(cfg *Config, stat *ProcessingStat) error {
 	cilog.Infof("end holdback0 deliver : %s error(%v)", ev.file, err != nil)
 	if err != nil {
 		cmd := "tail -5 " + ev.logPath
-		out, e := RemoteRun(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+		out, e := remote.Run(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 		if e == nil {
 			return fmt.Errorf("failed to deliver %v, %v\n%v %v\n%v", ev.file, err, cfg.HBDeliver.InstallerIP, ev.logPath, out)
 		}
 		return fmt.Errorf("failed to deliver %v, %v", ev.file, err)
 	}
-	if err := RemoteDelete(cfg, cfg.HBDeliver.InstallerIP, ev.logPath); err != nil {
+	if err := remote.Delete(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, ev.logPath); err != nil {
 		return fmt.Errorf("failed to delete %v %v, %v", cfg.HBDeliver.InstallerIP, ev.logPath, err)
 	}
 
@@ -91,13 +92,13 @@ func HBDeliverOne(cfg *Config, ev *HBDeliverEvent) error {
 	cmd += " -error-dir " + cfg.HBDeliver.ErrorDir
 	cmd += " 2> " + ev.logPath
 
-	_, err := RemoteRun(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	_, err := remote.Run(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to remote-run %v\n%v", cmd, err)
 	}
 
 	cmd = "grep completed " + ev.logPath
-	out, err := RemoteRun(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err := remote.Run(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
@@ -112,7 +113,7 @@ func HBDeliverOne(cfg *Config, ev *HBDeliverEvent) error {
 // OrgFileForHBDeliver :
 func OrgFileForHBDeliver(cfg *Config) (string, error) {
 	cmd := "ls " + cfg.HBDeliver.RemoteSourceFileDir
-	out, err := RemoteRun(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err := remote.Run(cfg.HBDeliver.InstallerIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return "", fmt.Errorf("failed to remote-run, %v", err)
 	}

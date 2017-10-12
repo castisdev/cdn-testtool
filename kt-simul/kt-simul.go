@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/castisdev/cdn-testtool/kt-simul/ktsimul"
+	"github.com/castisdev/cdn-testtool/kt-simul/remote"
 	"github.com/castisdev/cilog"
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -41,6 +42,9 @@ func main() {
 	setLog(cfg.LogDir, "kt-simul", "1.0.0", cfg.LogLevel)
 	cilog.Infof("program started")
 
+	remote.Init(cfg.VODClientIPs, cfg.RemoteUser, cfg.RemotePass)
+	cilog.Infof("remote client initailzation completed")
+
 	copyFiles(cfg)
 
 	stat := ktsimul.NewProcessingStat()
@@ -59,7 +63,7 @@ func copyFiles(cfg *ktsimul.Config) {
 	adsIP := cfg.FileDeliver.AdsIP()
 	aclient := "adsadapter-client"
 	target := path.Join(cfg.FileDeliver.RemoteADSAdapterClientDir, aclient)
-	copy, err := ktsimul.RemoteCopyIfNotExists(cfg, aclient, adsIP, target)
+	copy, err := remote.CopyIfNotExists(cfg.RemoteUser, cfg.RemotePass, aclient, adsIP, target)
 	if err != nil {
 		log.Fatalf("failed to remote-copy, %v", err)
 	}
@@ -69,7 +73,7 @@ func copyFiles(cfg *ktsimul.Config) {
 
 	for _, file := range cfg.FileDeliver.SourceFiles {
 		target := path.Join(cfg.FileDeliver.RemoteSourceFileDir, path.Base(file))
-		copy, err := ktsimul.RemoteCopyIfNotExists(cfg, file, adsIP, target)
+		copy, err := remote.CopyIfNotExists(cfg.RemoteUser, cfg.RemotePass, file, adsIP, target)
 		if err != nil {
 			log.Fatalf("failed to remote-copy, %v", err)
 		}
@@ -80,7 +84,7 @@ func copyFiles(cfg *ktsimul.Config) {
 
 	hclient := "hbdeliver-client"
 	target = path.Join(cfg.HBDeliver.RemoteHBClientDir, hclient)
-	copy, err = ktsimul.RemoteCopyIfNotExists(cfg, hclient, cfg.HBDeliver.InstallerIP, target)
+	copy, err = remote.CopyIfNotExists(cfg.RemoteUser, cfg.RemotePass, hclient, cfg.HBDeliver.InstallerIP, target)
 	if err != nil {
 		log.Fatalf("failed to remote-copy, %v", err)
 	}
@@ -90,7 +94,7 @@ func copyFiles(cfg *ktsimul.Config) {
 
 	for _, file := range cfg.HBDeliver.SourceFiles {
 		target := path.Join(cfg.HBDeliver.RemoteSourceFileDir, path.Base(file))
-		copy, err := ktsimul.RemoteCopyIfNotExists(cfg, file, cfg.HBDeliver.InstallerIP, target)
+		copy, err := remote.CopyIfNotExists(cfg.RemoteUser, cfg.RemotePass, file, cfg.HBDeliver.InstallerIP, target)
 		if err != nil {
 			log.Fatalf("failed to remote-copy, %v", err)
 		}
@@ -102,7 +106,7 @@ func copyFiles(cfg *ktsimul.Config) {
 	for _, bin := range cfg.VODClientBins {
 		for _, ip := range cfg.VODClientIPs {
 			target := path.Join(cfg.RemoteVodClientDir, bin)
-			copy, err := ktsimul.RemoteCopyIfNotExists(cfg, bin, ip, target)
+			copy, err := remote.CopyIfNotExists(cfg.RemoteUser, cfg.RemotePass, bin, ip, target)
 			if err != nil {
 				log.Fatalf("failed to remote-copy, %v", err)
 			}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/castisdev/cdn-testtool/kt-simul/remote"
 	"github.com/castisdev/cilog"
 )
 
@@ -50,7 +51,7 @@ func RunDeleteOne(cfg *Config, stat *ProcessingStat) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete %v, %v", ev.file, err)
 	}
-	if err := RemoteDelete(cfg, ev.clientIP, ev.logPath); err != nil {
+	if err := remote.Delete(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, ev.logPath); err != nil {
 		return fmt.Errorf("failed to delete %v %v, %v", ev.clientIP, ev.logPath, err)
 	}
 
@@ -84,13 +85,13 @@ func DeleteOne(cfg *Config, ev *DeleteEvent) error {
 		cfg.Delete.ADSAdapterAddr, ev.file, cfg.Delete.ClientDir, nodes)
 
 	cmd += " 2> " + ev.logPath
-	out, err := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err := remote.Run(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 
 	cmd = "tail -1 " + ev.logPath
-	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err = remote.Run(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}

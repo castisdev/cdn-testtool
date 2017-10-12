@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/castisdev/cdn-testtool/kt-simul/remote"
 	"github.com/castisdev/cilog"
 )
 
@@ -88,14 +89,14 @@ func setupOne(cfg *Config, ev *SetupEvent) error {
 
 	if err != nil {
 		cmd := "cat " + ev.logPath
-		out, e := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+		out, e := remote.Run2(ev.clientIP, cmd)
 		if e == nil {
 			return fmt.Errorf("failed to setup %v, %v\n%v %v\n%v", ev.file, err, ev.clientIP, ev.logPath, out)
 		}
 		return fmt.Errorf("failed to setup %v, %v", ev.file, err)
 	}
 
-	if err := RemoteDelete(cfg, ev.clientIP, ev.logPath); err != nil {
+	if err := remote.Delete2(ev.clientIP, ev.logPath); err != nil {
 		cilog.Warningf("failed to delete log, %v %v, %v", ev.clientIP, ev.logPath, err)
 	}
 	return nil
@@ -106,7 +107,7 @@ func setupToGlb(cfg *Config, ev *SetupEvent) (needsFailover bool, err error) {
 	glbAddr := ev.glbIP + ":" + glbPort
 
 	cmd := "mkdir -p " + path.Dir(ev.logPath)
-	out, err := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err := remote.Run2(ev.clientIP, cmd)
 	if err != nil {
 		return false, fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
@@ -122,13 +123,13 @@ func setupToGlb(cfg *Config, ev *SetupEvent) (needsFailover bool, err error) {
 	url := protocol + "://" + glbAddr + "/" + ev.file
 	url += "?p=v1:CV000000000022878657:F:" + ev.dongCode + ":22736884240:N:S3"
 	cmd = targetBin + " " + url + " " + strconv.FormatInt(int64(playSec), 10) + " > " + ev.logPath
-	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err = remote.Run2(ev.clientIP, cmd)
 	if err != nil {
 		return false, fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 
 	cmd = "grep 'play(): success.' " + ev.logPath
-	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
+	out, err = remote.Run2(ev.clientIP, cmd)
 	if err != nil {
 		return true, fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}

@@ -15,21 +15,22 @@ import (
 
 // SetupEvent :
 type SetupEvent struct {
-	clientIP  string
-	clientDir string
-	clientBin string
-	logPath   string
-	file      string
-	glbIP     string
-	isHot     bool
-	isTCP     bool
-	sessionDu time.Duration
-	dongCode  string
+	clientIP    string
+	clientDir   string
+	clientBin   string
+	logPath     string
+	file        string
+	glbIP       string
+	secondGlbIP string
+	isHot       bool
+	isTCP       bool
+	sessionDu   time.Duration
+	dongCode    string
 }
 
 func (ev SetupEvent) String() string {
-	return fmt.Sprintf("client(%v %v %v log:%v) %v glb(%v) isHot(%v) isTCP(%v) duration(%d) dongcode(%s)",
-		ev.clientIP, ev.clientDir, ev.clientBin, path.Base(ev.logPath), ev.file, ev.glbIP, ev.isHot,
+	return fmt.Sprintf("client(%v %v %v log:%v) %v glb(%v) secondGlb(%v) isHot(%v) isTCP(%v) duration(%d) dongcode(%s)",
+		ev.clientIP, ev.clientDir, ev.clientBin, path.Base(ev.logPath), ev.file, ev.glbIP, ev.secondGlbIP, ev.isHot,
 		ev.isTCP, int64(ev.sessionDu.Seconds()), ev.dongCode)
 }
 
@@ -40,8 +41,11 @@ func RunSetupOne(cfg *Config, localCfg LocalConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to select file for setup, %v", err)
 	}
-	glbIP := localCfg.GLBIP
-	if isHot == false {
+	var glbIP, secondGlbIP string
+	if isHot {
+		glbIP = localCfg.GLBIP
+		secondGlbIP = cfg.CenterGLBIPs[rand.Intn(len(cfg.CenterGLBIPs))]
+	} else {
 		glbIP = cfg.CenterGLBIPs[rand.Intn(len(cfg.CenterGLBIPs))]
 	}
 
@@ -49,22 +53,39 @@ func RunSetupOne(cfg *Config, localCfg LocalConfig) error {
 	t := time.Now().Format(layout)
 
 	ev := &SetupEvent{
-		clientIP:  vodClientIPForSetup(cfg),
-		clientDir: cfg.RemoteVodClientDir,
-		clientBin: cfg.VODClientBins[rand.Intn(len(cfg.VODClientBins))],
-		file:      file,
-		logPath:   path.Join(cfg.RemoteVodClientDir, "log", t+"."+file+".log"),
-		glbIP:     glbIP,
-		isHot:     isHot,
-		isTCP:     (rand.Intn(10) == 0),
-		sessionDu: localCfg.SessionDu,
-		dongCode:  localCfg.DongCode,
+		clientIP:    vodClientIPForSetup(cfg),
+		clientDir:   cfg.RemoteVodClientDir,
+		clientBin:   cfg.VODClientBins[rand.Intn(len(cfg.VODClientBins))],
+		file:        file,
+		logPath:     path.Join(cfg.RemoteVodClientDir, "log", t+"."+file+".log"),
+		glbIP:       glbIP,
+		secondGlbIP: secondGlbIP,
+		isHot:       isHot,
+		isTCP:       (rand.Intn(10) == 0),
+		sessionDu:   localCfg.SessionDu,
+		dongCode:    localCfg.DongCode,
 	}
 	cilog.Infof("start session: %s", ev)
 
-	err = SetupOne(cfg, ev)
+	err = setupOne(cfg, ev)
 
-	cilog.Infof("end session: %s, error(%v)", path.Base(ev.logPath), err != nil)
+	if err != nil {
+		cilog.Errorf("end session: %s,%v", path.Base(ev.logPath), err)
+	} else {
+		cilog.Infof("end session: %s, success", path.Base(ev.logPath))
+	}
+	return nil
+}
+
+func setupOne(cfg *Config, ev *SetupEvent) error {
+	needsFailover, err := setupToGlb(cfg, ev)
+
+	if needsFailover && ev.secondGlbIP != "" {
+		cilog.Infof("failed to setup %v to first glb(%v), but try to second glb(%v)", ev.file, ev.glbIP, ev.secondGlbIP)
+		ev.glbIP = ev.secondGlbIP
+		_, err = setupToGlb(cfg, ev)
+	}
+
 	if err != nil {
 		cmd := "cat " + ev.logPath
 		out, e := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
@@ -75,20 +96,19 @@ func RunSetupOne(cfg *Config, localCfg LocalConfig) error {
 	}
 
 	if err := RemoteDelete(cfg, ev.clientIP, ev.logPath); err != nil {
-		return fmt.Errorf("failed to delete %v %v, %v", ev.clientIP, ev.logPath, err)
+		cilog.Warningf("failed to delete log, %v %v, %v", ev.clientIP, ev.logPath, err)
 	}
 	return nil
 }
 
-// SetupOne :
-func SetupOne(cfg *Config, ev *SetupEvent) error {
+func setupToGlb(cfg *Config, ev *SetupEvent) (needsFailover bool, err error) {
 	glbPort := "1554"
 	glbAddr := ev.glbIP + ":" + glbPort
 
 	cmd := "mkdir -p " + path.Dir(ev.logPath)
 	out, err := RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
-		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
+		return false, fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 	protocol := "cirtsp"
 	if ev.isTCP {
@@ -104,19 +124,18 @@ func SetupOne(cfg *Config, ev *SetupEvent) error {
 	cmd = targetBin + " " + url + " " + strconv.FormatInt(int64(playSec), 10) + " > " + ev.logPath
 	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
-		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
+		return false, fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 
 	cmd = "grep 'play(): success.' " + ev.logPath
 	out, err = RemoteRun(ev.clientIP, cfg.RemoteUser, cfg.RemotePass, cmd)
 	if err != nil {
-		return fmt.Errorf("failed to remote-run %v, %v", cmd, err)
+		return true, fmt.Errorf("failed to remote-run %v, %v", cmd, err)
 	}
 	if out == "" {
-		return fmt.Errorf("failed to play vod")
+		return true, fmt.Errorf("failed to play vod")
 	}
-
-	return nil
+	return false, nil
 }
 
 func serviceFiles(db *sql.DB, limitN int, isHot bool) ([]string, error) {

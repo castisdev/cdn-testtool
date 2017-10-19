@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/castisdev/cdn-testtool/kt-simul/ktsimul"
@@ -19,7 +20,9 @@ func setLog(dir, module, moduleVersion string, minLevel cilog.Level) {
 
 func main() {
 	var isTest bool
+	var delFiles string
 	flag.BoolVar(&isTest, "test", false, "run test mode")
+	flag.StringVar(&delFiles, "del-files", "", "delete files from all nodes, (ex) a.mpg,b.mpg, (warning) adsa-client must exist in eads")
 	flag.Parse()
 
 	cfg, err := ktsimul.NewConfig("kt-simul.yml")
@@ -36,6 +39,18 @@ func main() {
 		fmt.Print("check LSM in config ...\n\n")
 		result = ktsimul.TestLSMs(cfg, okIPs)
 		fmt.Println(result)
+		return
+	}
+
+	if delFiles != "" {
+		cilog.SetMinLevel(cilog.INFO)
+		files := strings.FieldsFunc(delFiles, func(r rune) bool { return r == ',' })
+		for _, f := range files {
+			err := ktsimul.DeleteOne(cfg, f)
+			if err != nil {
+				cilog.Errorf("%s", err)
+			}
+		}
 		return
 	}
 

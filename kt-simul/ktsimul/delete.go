@@ -31,6 +31,11 @@ func RunDeleteOne(cfg *Config, stat *ProcessingStat) error {
 		return fmt.Errorf("failed to select file to delete, %v", err)
 	}
 
+	return DeleteOne(cfg, file)
+}
+
+// DeleteOne :
+func DeleteOne(cfg *Config, file string) error {
 	var layout = "20060102150405235"
 	t := time.Now().Format(layout)
 	dir := cfg.Delete.RemoteADSAdapterClientDir
@@ -45,7 +50,7 @@ func RunDeleteOne(cfg *Config, stat *ProcessingStat) error {
 	}
 	cilog.Infof("start delete : %s", ev)
 
-	err = DeleteOne(cfg, ev)
+	err := deleteOneInternal(cfg, ev)
 
 	cilog.Infof("end delete : %s error(%v)", ev.file, err != nil)
 	if err != nil {
@@ -58,8 +63,8 @@ func RunDeleteOne(cfg *Config, stat *ProcessingStat) error {
 	return nil
 }
 
-// DeleteOne :
-func DeleteOne(cfg *Config, ev *DeleteEvent) error {
+// deleteOneInternal :
+func deleteOneInternal(cfg *Config, ev *DeleteEvent) error {
 	nodes := ""
 	for _, v := range cfg.CenterGLBIPs {
 		if nodes != "" {

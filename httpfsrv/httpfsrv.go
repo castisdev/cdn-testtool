@@ -10,7 +10,6 @@ import (
 	"path"
 	"strconv"
 	"syscall"
-
 	"time"
 
 	"github.com/castisdev/cdn/hutil"
@@ -93,42 +92,24 @@ func readfile(f *os.File, useDirectio bool, offset, len int64) ([]byte, error) {
 	return buf, nil
 }
 
-//
-//func readfile(f *os.File, useDirectio bool, start, length int64) []byte {
-//	var buf []byte
-//	if useDirectio {
-//		const alignSize = 4096
-//		sz := int((length+alignSize)/alignSize) * alignSize
-//		if sz == (int(length) + int(alignSize)) {
-//			sz = int(length)
-//		}
-//		buf = make([]byte, sz)
-//		//buf = directio.AlignedBlock(int(fi.Size()))
-//	} else {
-//		buf = make([]byte, length)
-//	}
-//	if start != 0 {
-//		_, err := f.ReadAt(buf, start)
-//		if err != nil {
-//			fmt.Printf("error!! %v\n", err)
-//			return nil
-//		}
-//	} else {
-//		_, err := f.Read(buf)
-//		if err != nil {
-//			fmt.Printf("error!! %v\n", err)
-//			return nil
-//		}
-//	}
-//	return buf
-//}
-
 var useDirectIO bool
 var directory string
 var useReadAll bool
+var useCastisOTU bool
+var headCode, getCode int
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	if getCode > 0 {
+		w.WriteHeader(getCode)
+		return
+	}
+	if useCastisOTU && len(r.URL.Query()["session-id"]) == 0 {
+		log.Printf("session-id?(%v) redirectURL : %v\n", len(r.URL.Query()["session-id"]), r.RequestURI)
+		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id=aaa")
+		w.WriteHeader(http.StatusMovedPermanently)
+		return
+	}
 	fpath := path.Join(directory, r.URL.Path)
 	f, fi, err := openfile(fpath, useDirectIO)
 	if err != nil {
@@ -181,6 +162,10 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 func handleHead(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	if headCode > 0 {
+		w.WriteHeader(headCode)
+		return
+	}
 	fpath := path.Join(directory, r.URL.Path)
 	f, err := os.Stat(fpath)
 	if err != nil {
@@ -213,11 +198,17 @@ func main() {
 	fdLimit := flag.Int("fd-limit", 8192, "fd limit")
 	unixSocket := flag.Bool("usd", false, "use HTTP over unix domain socket")
 	unixSocketFile := flag.String("usd-file", "/usr/local/castis/cache/sock1", "unix domain socket file path")
+	otu := flag.Bool("castis-otu", false, "use castis-otu simulation, if ther is no session-id query param, redirect with session-id query param")
+	headResp := flag.Int("head-resp", 0, "response status code about HEAD Request")
+	getResp := flag.Int("get-resp", 0, "response status code about GET Request")
 	flag.Parse()
 
 	useDirectIO = *directio
 	directory = *dir
 	useReadAll = *readAll
+	useCastisOTU = *otu
+	headCode = *headResp
+	getCode = *getResp
 
 	var rlimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)

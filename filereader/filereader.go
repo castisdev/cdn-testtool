@@ -130,7 +130,7 @@ func readhttpOverUds(url, host, unixSocketFile string) {
 }
 
 func readhttp(url, host string) {
-	cl := hutil.NewHTTPClient(0)
+	cl := hutil.NewHTTPClient(0, nil)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Printf("error!! %v\n", err)

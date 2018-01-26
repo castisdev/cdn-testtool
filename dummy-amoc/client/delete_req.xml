@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="euc-kr"?>
+<!DOCTYPE Castanets SYSTEM "CastanetsGSM.DTD">
+<Castanets>
+	<Command External_ID="192.168.33.200,5000200" Command_ID="2007111614303410" Type="UpdateDeleteContent" Subtype="Request" Date="2007-11-16 17:13:21">
+		<Command_Data Name="From" Value="Center"></Command_Data>
+		<Command_Data Name="ContentName" Value="한글M한글0234SDF700001.mpg"></Command_Data>
+	</Command>
+</Castanets>

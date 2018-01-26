@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="euc-kr"?><!DOCTYPE Castanets SYSTEM "CastanetsGSM.DTD">
+<Castanets>
+    <Command External_ID="172.16.15.11,8089" Command_ID="20151019181603726" Type="UpdateCopyContent" Subtype="Request" Date="2015-10-19 18:16:03">
+        <Command_Data Name="ContentName" Value="201709011738261526.mpg"/>
+        <Command_Data Name="From" Value="Center"/>
+        <Command_Data Name="To" Value="Local"/>
+    </Command>
+</Castanets>
+

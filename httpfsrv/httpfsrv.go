@@ -97,6 +97,7 @@ var directory string
 var useReadAll bool
 var useCastisOTU bool
 var headCode, getCode int
+var disableRange bool
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
@@ -120,7 +121,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	w.Header().Set("Last-Modified", fi.ModTime().Format(time.RFC1123))
-	if ra := r.Header.Get("Range"); len(ra) > 0 {
+	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, fi.Size())
 		if err != nil {
 			log.Printf("failed to parse range, %v", err)
@@ -174,7 +175,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Last-Modified", f.ModTime().Format(time.RFC1123))
-	if ra := r.Header.Get("Range"); len(ra) > 0 {
+	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, f.Size())
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -193,7 +194,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 func main() {
 	addr := flag.String("addr", ":8282", "listen address")
 	directio := flag.Bool("directio", false, "use direct io")
-	dir := flag.String("dir", "/nginx-data", "base directory contains service file")
+	dir := flag.String("dir", "/data", "base directory contains service file")
 	readAll := flag.Bool("read-all", false, "always read all contents")
 	fdLimit := flag.Int("fd-limit", 8192, "fd limit")
 	unixSocket := flag.Bool("usd", false, "use HTTP over unix domain socket")
@@ -201,6 +202,7 @@ func main() {
 	otu := flag.Bool("castis-otu", false, "use castis-otu simulation, if ther is no session-id query param, redirect with session-id query param")
 	headResp := flag.Int("head-resp", 0, "response status code about HEAD Request")
 	getResp := flag.Int("get-resp", 0, "response status code about GET Request")
+	disableR := flag.Bool("disable-range", false, "disable range request")
 	flag.Parse()
 
 	useDirectIO = *directio
@@ -209,6 +211,7 @@ func main() {
 	useCastisOTU = *otu
 	headCode = *headResp
 	getCode = *getResp
+	disableRange = *disableR
 
 	var rlimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)

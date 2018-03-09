@@ -98,6 +98,7 @@ var useReadAll bool
 var useCastisOTU bool
 var headCode, getCode int
 var disableRange bool
+var noLastModified bool
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
@@ -120,7 +121,10 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	w.Header().Set("Last-Modified", fi.ModTime().Format(time.RFC1123))
+	if noLastModified == false {
+		w.Header().Set("Last-Modified", fi.ModTime().Format(time.RFC1123))
+	}
+
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, fi.Size())
 		if err != nil {
@@ -174,7 +178,10 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Last-Modified", f.ModTime().Format(time.RFC1123))
+	if noLastModified == false {
+		w.Header().Set("Last-Modified", f.ModTime().Format(time.RFC1123))
+	}
+
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, f.Size())
 		if err != nil {
@@ -203,6 +210,7 @@ func main() {
 	headResp := flag.Int("head-resp", 0, "response status code about HEAD Request")
 	getResp := flag.Int("get-resp", 0, "response status code about GET Request")
 	disableR := flag.Bool("disable-range", false, "disable range request")
+	nolm := flag.Bool("no-lm", false, "response has no Last-Modified header")
 	flag.Parse()
 
 	useDirectIO = *directio
@@ -212,6 +220,7 @@ func main() {
 	headCode = *headResp
 	getCode = *getResp
 	disableRange = *disableR
+	noLastModified = *nolm
 
 	var rlimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)

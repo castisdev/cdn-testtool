@@ -25,6 +25,11 @@ func main() {
 	conn, err := net.ListenUDP("udp", serverAddr)
 	checkError(err)
 	defer conn.Close()
+	err = conn.SetReadBuffer(256 * 1024)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		os.Exit(1)
+	}
 
 	fpath := "udp.dump"
 	os.Remove(fpath)
@@ -37,11 +42,12 @@ func main() {
 		n, _, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			fmt.Println("Error: ", err)
+			os.Exit(1)
 		}
 		_, err = f.Write(buf[:n])
 		if err != nil {
 			fmt.Println("Error: ", err)
+			os.Exit(1)
 		}
-		f.Sync()
 	}
 }

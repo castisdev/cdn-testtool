@@ -31,6 +31,10 @@ func main() {
 		log.Fatal(err)
 	}
 	defer conn.Close()
+	err = conn.SetWriteBuffer(256 * 1024)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	in, err := os.Open(file)
 	if err != nil {

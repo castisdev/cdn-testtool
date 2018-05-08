@@ -43,21 +43,26 @@ func main() {
 	defer in.Close()
 
 	buf := make([]byte, 1024)
+	var start time.Time
+	totalWrited := int64(0)
 	for {
-		now := time.Now()
 		n, err := in.Read(buf)
 		if err != nil {
 			log.Fatal(err)
+		}
+		if start.IsZero() {
+			start = time.Now()
 		}
 		_, err = conn.Write(buf[0:n])
 		if err != nil {
 			log.Fatal(err)
 		}
+		totalWrited += int64(n)
 		sleepNano := int64(1)
 		if bw > 0 {
-			du := time.Since(now)
+			du := time.Since(start)
 			// n = (duNano + x) * bw / 8 / 1000000000
-			sleepNano = int64(n*8*1000000000)/bw - du.Nanoseconds()
+			sleepNano = int64(totalWrited*8*1000000000)/bw - du.Nanoseconds()
 		}
 		<-time.After(time.Duration(sleepNano) * time.Nanosecond)
 	}

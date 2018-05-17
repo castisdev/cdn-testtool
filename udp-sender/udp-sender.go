@@ -26,7 +26,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	conn, err := net.DialUDP("udp", localAddr, srvAddr)
+	conn, err := net.ListenUDP("udp", localAddr)
+	// conn, err := net.DialUDP("udp", localAddr, srvAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,7 +43,7 @@ func main() {
 	}
 	defer in.Close()
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, 1316)
 	var start time.Time
 	totalWrited := int64(0)
 	for {
@@ -53,7 +54,7 @@ func main() {
 		if start.IsZero() {
 			start = time.Now()
 		}
-		_, err = conn.Write(buf[0:n])
+		_, err = conn.WriteToUDP(buf[0:n], srvAddr)
 		if err != nil {
 			log.Fatal(err)
 		}

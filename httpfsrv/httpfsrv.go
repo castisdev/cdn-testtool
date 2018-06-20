@@ -127,6 +127,8 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Last-Modified", fi.ModTime().Format(time.RFC1123))
 	}
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, fi.Size())
 		if err != nil {

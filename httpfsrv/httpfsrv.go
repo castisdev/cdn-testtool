@@ -14,6 +14,7 @@ import (
 
 	"github.com/castisdev/cdn/hutil"
 	"github.com/gorilla/mux"
+	uuid "github.com/satori/go.uuid"
 )
 
 func openfile(filepath string, useDirectio bool) (f *os.File, fi os.FileInfo, err error) {
@@ -96,6 +97,7 @@ var useDirectIO bool
 var directory string
 var useReadAll bool
 var useCastisOTU bool
+var useZooinOTU bool
 var headCode, getCode int
 var disableRange bool
 var noLastModified bool
@@ -106,9 +108,9 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(getCode)
 		return
 	}
-	if useCastisOTU && len(r.URL.Query()["session-id"]) == 0 {
+	if (useCastisOTU || useZooinOTU) && len(r.URL.Query()["session-id"]) == 0 {
 		log.Printf("session-id?(%v) redirectURL : %v\n", len(r.URL.Query()["session-id"]), r.RequestURI)
-		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id=aaa")
+		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+uuid.NewV4().String())
 		w.WriteHeader(http.StatusMovedPermanently)
 		return
 	}
@@ -173,6 +175,12 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(headCode)
 		return
 	}
+	if useZooinOTU && len(r.URL.Query()["session-id"]) == 0 {
+		log.Printf("session-id?(%v) redirectURL : %v\n", len(r.URL.Query()["session-id"]), r.RequestURI)
+		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+uuid.NewV4().String())
+		w.WriteHeader(http.StatusMovedPermanently)
+		return
+	}
 	fpath := path.Join(directory, r.URL.Path)
 	f, err := os.Stat(fpath)
 	if err != nil {
@@ -209,6 +217,7 @@ func main() {
 	unixSocket := flag.Bool("usd", false, "use HTTP over unix domain socket")
 	unixSocketFile := flag.String("usd-file", "/usr/local/castis/cache/sock1", "unix domain socket file path")
 	otu := flag.Bool("castis-otu", false, "use castis-otu simulation, if ther is no session-id query param, redirect with session-id query param")
+	zooinOTU := flag.Bool("zooin-otu", false, "use zooin-otu simulation, if ther is no session-id query param, redirect with session-id query param")
 	headResp := flag.Int("head-resp", 0, "response status code about HEAD Request")
 	getResp := flag.Int("get-resp", 0, "response status code about GET Request")
 	disableR := flag.Bool("disable-range", false, "disable range request")
@@ -219,6 +228,7 @@ func main() {
 	directory = *dir
 	useReadAll = *readAll
 	useCastisOTU = *otu
+	useZooinOTU = *zooinOTU
 	headCode = *headResp
 	getCode = *getResp
 	disableRange = *disableR

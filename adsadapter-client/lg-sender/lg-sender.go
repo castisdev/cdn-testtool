@@ -18,11 +18,14 @@ const (
 )
 
 func main() {
-	var adsaAddr, xmlFile, statusTransacionID, deleteTransacionID string
+	var adsaAddr, xmlFile, statusTransacionID, deleteTransacionID, tmStatusTrID, tmOffTrID, tmOffChID string
 	flag.StringVar(&adsaAddr, "addr", "127.0.0.1:8081", "ADSAdapter listen address")
 	flag.StringVar(&xmlFile, "xml", "", "xml file to send")
 	flag.StringVar(&statusTransacionID, "ss-status", "", "send StreamSegmentStatus with [transactionID]")
 	flag.StringVar(&deleteTransacionID, "ss-delete", "", "send StreamSegmentDelete with [transactionID]")
+	flag.StringVar(&tmStatusTrID, "tm-status", "", "send TimeMachineStatus with [transactionID]")
+	flag.StringVar(&tmOffTrID, "tm-off-transaction", "", "send TimeMachineOff with [transactionID]")
+	flag.StringVar(&tmOffChID, "tm-off-channel", "", "send TimeMachineOff with [channelID]")
 
 	flag.Parse()
 
@@ -42,6 +45,16 @@ func main() {
 		}
 	} else if len(deleteTransacionID) > 0 {
 		_, err := streamSegmentDelete(adsaAddr, deleteTransacionID)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else if len(tmStatusTrID) > 0 {
+		_, err := timeMachineStatus(adsaAddr, tmStatusTrID)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else if len(tmOffTrID) > 0 && len(tmOffChID) > 0 {
+		_, err := timeMachineOff(adsaAddr, tmOffTrID, tmOffChID)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -119,4 +132,40 @@ func streamSegmentDelete(addr, trid string) (reply string, err error) {
 func timeToStr(t time.Time) string {
 	var layout = "2006-01-02 15:04:05"
 	return t.Format(layout)
+}
+
+func timeMachineStatus(addr, trid string) (reply string, err error) {
+	xml := `<?xml version="1.0" encoding="EUC-KR" standalone="no" ?> 
+	<eADS>
+		<Job>
+			<Job_Name>time machine status</Job_Name>
+			<Command_Date>DATETIME</Command_Date>
+			<Command Type="TimeMachineStatus">
+				<Command_Data Name="Transaction_ID" Value="TRANSACTIONID"/>
+			</Command>
+		</Job>
+	</eADS>
+`
+	xml = strings.Replace(xml, "TRANSACTIONID", trid, -1)
+	xml = strings.Replace(xml, "DATETIME", timeToStr(time.Now()), -1)
+	return sendXML(addr, xml)
+}
+
+func timeMachineOff(addr, trid, chid string) (reply string, err error) {
+	xml := `<?xml version="1.0" encoding="EUC-KR" standalone="no" ?> 
+<eADS>
+	<Job>
+		<Job_Name>time machine off</Job_Name>
+		<Command_Date>DATETIME</Command_Date>
+		<Command Type="TimeMachineOff">
+			<Command_Data Name="Channel_ID" Value="CHANNELID"/>
+			<Command_Data Name="Transaction_ID" Value="TRANSACTIONID"/>
+		</Command>
+	</Job>
+</eADS>
+`
+	xml = strings.Replace(xml, "CHANNELID", chid, -1)
+	xml = strings.Replace(xml, "TRANSACTIONID", trid, -1)
+	xml = strings.Replace(xml, "DATETIME", timeToStr(time.Now()), -1)
+	return sendXML(addr, xml)
 }

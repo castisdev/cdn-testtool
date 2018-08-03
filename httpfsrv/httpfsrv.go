@@ -10,7 +10,6 @@ import (
 	"path"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/castisdev/cdn/hutil"
 	"github.com/gorilla/mux"
@@ -20,7 +19,7 @@ import (
 func openfile(filepath string, useDirectio bool) (f *os.File, fi os.FileInfo, err error) {
 	flag := os.O_RDONLY
 	if useDirectio {
-		flag |= syscall.O_DIRECT
+		// flag |= syscall.O_DIRECT
 	}
 	f, err = os.OpenFile(filepath, flag, 0666)
 	if err != nil {
@@ -189,7 +188,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if noLastModified == false {
-		w.Header().Set("Last-Modified", f.ModTime().Format(time.RFC1123))
+		w.Header().Set("Last-Modified", f.ModTime().UTC().Format(http.TimeFormat))
 	}
 
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {

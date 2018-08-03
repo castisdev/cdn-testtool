@@ -124,7 +124,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	if noLastModified == false {
-		w.Header().Set("Last-Modified", fi.ModTime().Format(time.RFC1123))
+		w.Header().Set("Last-Modified", fi.ModTime().UTC().Format(http.TimeFormat))
 	}
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")

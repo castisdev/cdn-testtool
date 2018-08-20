@@ -207,6 +207,17 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handlePost(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	if getCode > 0 {
+		w.WriteHeader(getCode)
+		return
+	}
+
+	defer r.Body.Close()
+	w.WriteHeader(http.StatusCreated)
+}
+
 func main() {
 	addr := flag.String("addr", ":8282", "listen address")
 	directio := flag.Bool("directio", false, "use direct io")
@@ -248,6 +259,7 @@ func main() {
 	r := mux.NewRouter()
 	r.Methods("GET").HandlerFunc(handleGet)
 	r.Methods("HEAD").HandlerFunc(handleHead)
+	r.Methods("POST").HandlerFunc(handlePost)
 
 	if *unixSocket {
 		if err := os.RemoveAll(*unixSocketFile); err != nil {

@@ -10,7 +10,6 @@ import (
 	"path"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/castisdev/cdn/hutil"
 	"github.com/gorilla/mux"
@@ -20,7 +19,7 @@ import (
 func openfile(filepath string, useDirectio bool) (f *os.File, fi os.FileInfo, err error) {
 	flag := os.O_RDONLY
 	if useDirectio {
-		flag |= syscall.O_DIRECT
+		// flag |= syscall.O_DIRECT
 	}
 	f, err = os.OpenFile(filepath, flag, 0666)
 	if err != nil {
@@ -124,7 +123,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	if noLastModified == false {
-		w.Header().Set("Last-Modified", fi.ModTime().Format(time.RFC1123))
+		w.Header().Set("Last-Modified", fi.ModTime().UTC().Format(http.TimeFormat))
 	}
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -189,7 +188,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if noLastModified == false {
-		w.Header().Set("Last-Modified", f.ModTime().Format(time.RFC1123))
+		w.Header().Set("Last-Modified", f.ModTime().UTC().Format(http.TimeFormat))
 	}
 
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
@@ -206,6 +205,17 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.FormatInt(f.Size(), 10))
 		w.WriteHeader(200)
 	}
+}
+
+func handlePost(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	if getCode > 0 {
+		w.WriteHeader(getCode)
+		return
+	}
+
+	defer r.Body.Close()
+	w.WriteHeader(http.StatusCreated)
 }
 
 func main() {
@@ -249,6 +259,7 @@ func main() {
 	r := mux.NewRouter()
 	r.Methods("GET").HandlerFunc(handleGet)
 	r.Methods("HEAD").HandlerFunc(handleHead)
+	r.Methods("POST").HandlerFunc(handlePost)
 
 	if *unixSocket {
 		if err := os.RemoveAll(*unixSocketFile); err != nil {

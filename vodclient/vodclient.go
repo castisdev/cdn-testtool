@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/castisdev/cdn/hutil"
+	"github.com/castisdev/gcommon/hutil"
 )
 
 func main() {

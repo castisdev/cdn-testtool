@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/castisdev/cdn/hutil"
+	"github.com/castisdev/gcommon/hutil"
 	"github.com/ncw/directio"
 )
 

@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/castisdev/cdn/hutil"
+	"github.com/castisdev/gcommon/hutil"
 )
 
 func copyFileContents(src, dst string) (err error) {

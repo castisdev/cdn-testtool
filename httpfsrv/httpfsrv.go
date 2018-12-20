@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/castisdev/cdn/hutil"
+	"github.com/castisdev/gcommon/hutil"
 	"github.com/gorilla/mux"
 	uuid "github.com/satori/go.uuid"
 )

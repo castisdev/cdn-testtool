@@ -193,6 +193,11 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Last-Modified", f.ModTime().UTC().Format(http.TimeFormat))
 	}
 
+	if r.Header.Get("If-Modified-Since") == w.Header().Get("Last-Modified") {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, f.Size())
 		if err != nil {

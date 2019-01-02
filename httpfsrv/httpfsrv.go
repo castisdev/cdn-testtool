@@ -109,7 +109,8 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 	if (useCastisOTU || useZooinOTU) && len(r.URL.Query()["session-id"]) == 0 {
 		log.Printf("session-id?(%v) redirectURL : %v\n", len(r.URL.Query()["session-id"]), r.RequestURI)
-		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+uuid.NewV4().String())
+		id, _ := uuid.NewV4()
+		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+id.String())
 		w.WriteHeader(http.StatusMovedPermanently)
 		return
 	}
@@ -176,7 +177,8 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	}
 	if useZooinOTU && len(r.URL.Query()["session-id"]) == 0 {
 		log.Printf("session-id?(%v) redirectURL : %v\n", len(r.URL.Query()["session-id"]), r.RequestURI)
-		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+uuid.NewV4().String())
+		id, _ := uuid.NewV4()
+		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+id.String())
 		w.WriteHeader(http.StatusMovedPermanently)
 		return
 	}

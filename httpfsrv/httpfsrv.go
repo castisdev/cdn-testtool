@@ -117,8 +117,12 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	fpath := path.Join(directory, r.URL.Path)
 	f, fi, err := openfile(fpath, useDirectIO)
 	if err != nil {
+		status := http.StatusInternalServerError
+		if os.IsNotExist(err) {
+			status = http.StatusNotFound
+		}
 		log.Printf("failed to open, %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(status)
 		return
 	}
 	defer f.Close()
@@ -185,7 +189,11 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	fpath := path.Join(directory, r.URL.Path)
 	f, err := os.Stat(fpath)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		status := http.StatusInternalServerError
+		if os.IsNotExist(err) {
+			status = http.StatusNotFound
+		}
+		w.WriteHeader(status)
 		return
 	}
 

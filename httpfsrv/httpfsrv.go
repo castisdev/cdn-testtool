@@ -100,6 +100,7 @@ var useZooinOTU bool
 var headCode, getCode int
 var disableRange bool
 var noLastModified bool
+var cacheControl string
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
@@ -132,6 +133,10 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if cacheControl != "" {
+		w.Header().Set("Cache-Control", cacheControl)
+	}
 
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, fi.Size())
@@ -201,9 +206,8 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Last-Modified", f.ModTime().UTC().Format(http.TimeFormat))
 	}
 
-	if r.Header.Get("If-Modified-Since") == w.Header().Get("Last-Modified") {
-		w.WriteHeader(http.StatusNotModified)
-		return
+	if cacheControl != "" {
+		w.Header().Set("Cache-Control", cacheControl)
 	}
 
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
@@ -215,9 +219,21 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.Header().Set("Content-Range", ras[0].ContentRange(f.Size()))
 		w.Header().Set("Content-Length", strconv.FormatInt(ras[0].Length, 10))
+
+		if r.Header.Get("If-Modified-Since") == w.Header().Get("Last-Modified") {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+
 		w.WriteHeader(206)
 	} else {
 		w.Header().Set("Content-Length", strconv.FormatInt(f.Size(), 10))
+
+		if r.Header.Get("If-Modified-Since") == w.Header().Get("Last-Modified") {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+
 		w.WriteHeader(200)
 	}
 }
@@ -247,6 +263,7 @@ func main() {
 	getResp := flag.Int("get-resp", 0, "response status code about GET Request")
 	disableR := flag.Bool("disable-range", false, "disable range request")
 	nolm := flag.Bool("no-lm", false, "response has no Last-Modified header")
+	cachecontrol := flag.String("cache-control", "", "http Cache-Control header")
 	flag.Parse()
 
 	useDirectIO = *directio
@@ -258,6 +275,7 @@ func main() {
 	getCode = *getResp
 	disableRange = *disableR
 	noLastModified = *nolm
+	cacheControl = *cachecontrol
 
 	var rlimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)

@@ -115,6 +115,10 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMovedPermanently)
 		return
 	}
+	// sode origin 기능
+	if r.URL.Path == "/dn_servlet" {
+		r.URL.Path = r.URL.Query().Get("filename")
+	}
 	fpath := path.Join(directory, r.URL.Path)
 	f, fi, err := openfile(fpath, useDirectIO)
 	if err != nil {
@@ -190,6 +194,10 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+id.String())
 		w.WriteHeader(http.StatusMovedPermanently)
 		return
+	}
+	// sode origin 기능
+	if r.URL.Path == "/dn_servlet" {
+		r.URL.Path = r.URL.Query().Get("filename")
 	}
 	fpath := path.Join(directory, r.URL.Path)
 	f, err := os.Stat(fpath)

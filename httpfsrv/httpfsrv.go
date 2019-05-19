@@ -153,6 +153,11 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Range", ras[0].ContentRange(fi.Size()))
 		w.Header().Set("Content-Length", strconv.FormatInt(ras[0].Length, 10))
 
+		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+
 		var b []byte
 		if useReadAll {
 			b, err = readfile(f, useDirectIO, 0, fi.Size())
@@ -176,10 +181,15 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+
+		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+
 		w.WriteHeader(200)
 		w.Write(b)
 	}
-
 }
 
 func handleHead(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +238,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Range", ras[0].ContentRange(f.Size()))
 		w.Header().Set("Content-Length", strconv.FormatInt(ras[0].Length, 10))
 
-		if r.Header.Get("If-Modified-Since") == w.Header().Get("Last-Modified") {
+		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
@@ -237,7 +247,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Header().Set("Content-Length", strconv.FormatInt(f.Size(), 10))
 
-		if r.Header.Get("If-Modified-Since") == w.Header().Get("Last-Modified") {
+		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}

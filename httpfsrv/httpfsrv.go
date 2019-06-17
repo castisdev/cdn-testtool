@@ -295,6 +295,8 @@ func main() {
 	noLastModified = *nolm
 	cacheControl = *cachecontrol
 
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
 	var rlimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 	if err != nil {

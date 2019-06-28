@@ -14,6 +14,11 @@ import (
 
 func main() {
 	duration := flag.Duration("duration", 1*time.Minute, "dump duration")
+	rtp := flag.Bool("rtp", false, "rtp source, false:udp")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] ip:port\n\n", os.Args[0])
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	addrstr := flag.Arg(0)
@@ -50,14 +55,20 @@ func main() {
 		}
 	}
 
-	log.Printf("start to dump, %v, %v", addrstr, *duration)
-	buf := make([]byte, 1316+12)
+	headerSize := 0
+	proto := "udp"
+	if *rtp {
+		proto = "rtp"
+		headerSize = 12
+	}
+	log.Printf("start to dump, %v, %v, %v", addrstr, proto, *duration)
+	buf := make([]byte, 1316+headerSize)
 	for start := time.Now(); time.Now().Sub(start) <= *duration; {
 		n, _, err := conn.ReadFrom(buf)
 		if err != nil {
 			log.Fatalf("failed to read, %v", err)
 		}
-		_, err = dmp.Write(buf[12:n])
+		_, err = dmp.Write(buf[headerSize:n])
 		if err != nil {
 			log.Fatalf("failed to write to file, %v", err)
 		}

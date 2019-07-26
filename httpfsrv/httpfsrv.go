@@ -10,6 +10,7 @@ import (
 	"path"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/castisdev/gcommon/hutil"
 	"github.com/gorilla/mux"
@@ -101,9 +102,14 @@ var headCode, getCode int
 var disableRange bool
 var noLastModified bool
 var cacheControl string
+var getDelay time.Duration
+var headDelay time.Duration
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	if getDelay > 0 {
+		<-time.After(getDelay)
+	}
 	if getCode > 0 {
 		w.WriteHeader(getCode)
 		return
@@ -194,6 +200,9 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 func handleHead(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	if headDelay > 0 {
+		<-time.After(headDelay)
+	}
 	if headCode > 0 {
 		w.WriteHeader(headCode)
 		return
@@ -282,6 +291,8 @@ func main() {
 	disableR := flag.Bool("disable-range", false, "disable range request")
 	nolm := flag.Bool("no-lm", false, "response has no Last-Modified header")
 	cachecontrol := flag.String("cache-control", "", "http Cache-Control header")
+	getD := flag.Duration("get-delay", 0, "response delay about GET Request")
+	headD := flag.Duration("head-delay", 0, "response delay about HEAD Request")
 	flag.Parse()
 
 	useDirectIO = *directio
@@ -294,6 +305,8 @@ func main() {
 	disableRange = *disableR
 	noLastModified = *nolm
 	cacheControl = *cachecontrol
+	getDelay = *getD
+	headDelay = *headD
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 

@@ -105,20 +105,30 @@ var cacheControl string
 var getDelay time.Duration
 var headDelay time.Duration
 
+func statusText(status int) string {
+	return fmt.Sprintf("%d %s", status, http.StatusText(status))
+}
+
+func writeHeader(w http.ResponseWriter, r *http.Request, status int, extLog string) {
+	w.WriteHeader(status)
+	log.Printf("[%s] %s, %s", r.RemoteAddr, statusText(status), extLog)
+}
+
 func handleGet(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	log.Printf("[%s] %s %s, %v", r.RemoteAddr, r.Method, r.RequestURI, r.Header)
+	begT := time.Now()
 	if getDelay > 0 {
 		<-time.After(getDelay)
 	}
 	if getCode > 0 {
-		w.WriteHeader(getCode)
+		writeHeader(w, r, getCode, "")
 		return
 	}
 	if (useCastisOTU || useZooinOTU) && len(r.URL.Query()["session-id"]) == 0 {
-		log.Printf("session-id?(%v) redirectURL : %v\n", len(r.URL.Query()["session-id"]), r.RequestURI)
 		id, _ := uuid.NewV4()
 		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+id.String())
-		w.WriteHeader(http.StatusMovedPermanently)
+		str := fmt.Sprintf("session-id(%v) redirectURL : %v", len(r.URL.Query()["session-id"]), r.RequestURI)
+		writeHeader(w, r, http.StatusMovedPermanently, str)
 		return
 	}
 	// sode origin 기능
@@ -126,17 +136,18 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = r.URL.Query().Get("filename")
 	}
 	fpath := path.Join(directory, r.URL.Path)
+	openBegT := time.Now()
 	f, fi, err := openfile(fpath, useDirectIO)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if os.IsNotExist(err) {
 			status = http.StatusNotFound
 		}
-		log.Printf("failed to open, %v", err)
-		w.WriteHeader(status)
+		writeHeader(w, r, status, "failed to open, "+err.Error())
 		return
 	}
 	defer f.Close()
+	openDu := time.Since(openBegT)
 
 	if noLastModified == false {
 		w.Header().Set("Last-Modified", fi.ModTime().UTC().Format(http.TimeFormat))
@@ -148,11 +159,12 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", cacheControl)
 	}
 
+	var readDu time.Duration
+	var status int
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, fi.Size())
 		if err != nil {
-			log.Printf("failed to parse range, %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			writeHeader(w, r, http.StatusInternalServerError, "failed to parse range, "+err.Error())
 			return
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
@@ -160,10 +172,11 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.FormatInt(ras[0].Length, 10))
 
 		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
-			w.WriteHeader(http.StatusNotModified)
+			writeHeader(w, r, http.StatusNotModified, "")
 			return
 		}
 
+		readBegT := time.Now()
 		var b []byte
 		if useReadAll {
 			b, err = readfile(f, useDirectIO, 0, fi.Size())
@@ -172,46 +185,49 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			b, err = readfile(f, useDirectIO, ras[0].Start, ras[0].Length)
 		}
 		if err != nil {
-			log.Printf("failed to readfile, %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			writeHeader(w, r, http.StatusInternalServerError, "failed to readfile, "+err.Error())
 			return
 		}
-		w.WriteHeader(206)
+		readDu = time.Since(readBegT)
+		status = http.StatusPartialContent
+		w.WriteHeader(status)
 		w.Write(b)
 	} else {
+		readBegT := time.Now()
 		b, err := readfile(f, useDirectIO, 0, fi.Size())
 		if err != nil {
-			log.Printf("failed to readfile, %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			writeHeader(w, r, http.StatusInternalServerError, "failed to readfile, "+err.Error())
 			return
 		}
+		readDu = time.Since(readBegT)
 
 		w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
 
 		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
-			w.WriteHeader(http.StatusNotModified)
+			writeHeader(w, r, http.StatusNotModified, "")
 			return
 		}
-
-		w.WriteHeader(200)
+		status = http.StatusOK
+		w.WriteHeader(status)
 		w.Write(b)
 	}
+	log.Printf("[%s] %s elapsed:%v (fopen:%v/fread:%v)", r.RemoteAddr, statusText(status), time.Since(begT), openDu, readDu)
 }
 
 func handleHead(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	log.Printf("[%s] %s %s, %v", r.RemoteAddr, r.Method, r.RequestURI, r.Header)
 	if headDelay > 0 {
 		<-time.After(headDelay)
 	}
 	if headCode > 0 {
-		w.WriteHeader(headCode)
+		writeHeader(w, r, headCode, "")
 		return
 	}
 	if useZooinOTU && len(r.URL.Query()["session-id"]) == 0 {
-		log.Printf("session-id?(%v) redirectURL : %v\n", len(r.URL.Query()["session-id"]), r.RequestURI)
 		id, _ := uuid.NewV4()
 		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+id.String())
-		w.WriteHeader(http.StatusMovedPermanently)
+		str := fmt.Sprintf("session-id(%v) redirectURL : %v", len(r.URL.Query()["session-id"]), r.RequestURI)
+		writeHeader(w, r, http.StatusMovedPermanently, str)
 		return
 	}
 	// sode origin 기능
@@ -225,7 +241,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		if os.IsNotExist(err) {
 			status = http.StatusNotFound
 		}
-		w.WriteHeader(status)
+		writeHeader(w, r, status, "failed to stat, "+err.Error())
 		return
 	}
 
@@ -240,7 +256,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
 		ras, err := hutil.ParseRange(ra, f.Size())
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			writeHeader(w, r, http.StatusInternalServerError, "failed to parse range, "+err.Error())
 			return
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
@@ -248,32 +264,32 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.FormatInt(ras[0].Length, 10))
 
 		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
-			w.WriteHeader(http.StatusNotModified)
+			writeHeader(w, r, http.StatusNotModified, "")
 			return
 		}
 
-		w.WriteHeader(206)
+		writeHeader(w, r, http.StatusPartialContent, "")
 	} else {
 		w.Header().Set("Content-Length", strconv.FormatInt(f.Size(), 10))
 
 		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
-			w.WriteHeader(http.StatusNotModified)
+			writeHeader(w, r, http.StatusNotModified, "")
 			return
 		}
 
-		w.WriteHeader(200)
+		writeHeader(w, r, http.StatusOK, "")
 	}
 }
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s %s, %v", r.Method, r.RequestURI, r.Header)
+	log.Printf("[%s] %s %s, %v", r.RemoteAddr, r.Method, r.RequestURI, r.Header)
 	if getCode > 0 {
-		w.WriteHeader(getCode)
+		writeHeader(w, r, getCode, "")
 		return
 	}
 
 	defer r.Body.Close()
-	w.WriteHeader(http.StatusCreated)
+	writeHeader(w, r, http.StatusCreated, "")
 }
 
 func main() {

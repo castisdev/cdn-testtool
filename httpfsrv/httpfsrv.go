@@ -309,6 +309,9 @@ func main() {
 	cachecontrol := flag.String("cache-control", "", "http Cache-Control header")
 	getD := flag.Duration("get-delay", 0, "response delay about GET Request")
 	headD := flag.Duration("head-delay", 0, "response delay about HEAD Request")
+	https := flag.Bool("https", false, "use https")
+	httpsCert := flag.String("https-cert", "cert.pem", "https cert file")
+	httpsKey := flag.String("https-key", "key.pem", "https key file")
 	flag.Parse()
 
 	useDirectIO = *directio
@@ -355,6 +358,8 @@ func main() {
 			Handler: r,
 		}
 		server.Serve(listener)
+	} else if *https {
+		log.Fatal(http.ListenAndServeTLS(*addr, *httpsCert, *httpsKey, r))
 	} else {
 		log.Fatal(http.ListenAndServe(*addr, r))
 	}

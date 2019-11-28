@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,6 +17,51 @@ import (
 	"github.com/gorilla/mux"
 	uuid "github.com/satori/go.uuid"
 )
+
+func contentType(urlPath string) string {
+	ext := strings.ToLower(path.Ext(urlPath))
+	switch ext {
+	case ".htm", ".html", ".php":
+		return "text/html"
+	case ".css":
+		return "text/css"
+	case ".txt":
+		return "text/plain"
+	case ".js":
+		return "application/javascript"
+	case ".xml":
+		return "application/xml"
+	case ".swf":
+		return "application/x-shockwave-flash"
+	case ".flv":
+		return "video/x-flv"
+	case ".png":
+		return "image/png"
+	case ".jpe", ".jpeg", ".jpg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".bmp":
+		return "image/bmp"
+	case ".ico":
+		return "image/vnd.microsoft.icon"
+	case ".tiff", ".tif":
+		return "image/tiff"
+	case ".svg", ".svgz":
+		return "image/svg+xml"
+	case ".mpd":
+		return "application/dash+xml"
+	case ".m3u8":
+		return "application/vnd.apple.mpegurl"
+	case ".ts":
+		return "video/MP2T"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".aac":
+		return "audio/aac"
+	}
+	return "application/text"
+}
 
 func openfile(filepath string, useDirectio bool) (f *os.File, fi os.FileInfo, err error) {
 	flag := os.O_RDONLY
@@ -154,6 +200,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", contentType(r.URL.Path))
 
 	if cacheControl != "" {
 		w.Header().Set("Cache-Control", cacheControl)

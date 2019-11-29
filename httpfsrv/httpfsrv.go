@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -150,14 +151,70 @@ var noLastModified bool
 var cacheControl string
 var getDelay time.Duration
 var headDelay time.Duration
+var useChunkedEncoding bool
+var ceChunkCount int
+var ceSleep time.Duration
 
 func statusText(status int) string {
 	return fmt.Sprintf("%d %s", status, http.StatusText(status))
 }
 
+func contentRange(ra hutil.HTTPRange, size int64) string {
+	if useChunkedEncoding {
+		// for castis cache-server
+		return ra.ContentRange(-1)
+	}
+	return ra.ContentRange(size)
+}
+
 func writeHeader(w http.ResponseWriter, r *http.Request, status int, extLog string) {
+	if useChunkedEncoding && status == http.StatusPartialContent || status == http.StatusOK {
+		w.Header().Del("Content-Length")
+	}
 	w.WriteHeader(status)
 	log.Printf("[%s] %s, %s", r.RemoteAddr, statusText(status), extLog)
+}
+
+func writeResponse(w http.ResponseWriter, r *http.Request, status int, body []byte) error {
+	if useChunkedEncoding {
+		return writeChunkedEncoding(w, r, status, body)
+	}
+	w.WriteHeader(status)
+	w.Write(body)
+	log.Printf("[%s] write body, size[%d]", r.RemoteAddr, len(body))
+	return nil
+}
+
+func writeChunkedEncoding(w http.ResponseWriter, r *http.Request, status int, body []byte) error {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		return fmt.Errorf("failed to get flusher")
+	}
+	w.Header().Del("Content-Length")
+	w.WriteHeader(status)
+
+	chunkN := len(body)
+	chunkLen := 1
+	if len(body) > ceChunkCount {
+		chunkLen = int(math.Ceil(float64(len(body)) / float64(ceChunkCount)))
+		chunkN = ceChunkCount
+	}
+
+	for i := 0; i < chunkN; i++ {
+		size := chunkLen
+		if i+1 == chunkN {
+			size = len(body) - (i * chunkLen)
+			w.Write(body[i*chunkLen:])
+		} else {
+			w.Write(body[i*chunkLen : (i+1)*chunkLen])
+		}
+		flusher.Flush()
+		log.Printf("[%s] write chunk, size[%d]", r.RemoteAddr, size)
+		if i+1 < chunkN {
+			time.Sleep(ceSleep)
+		}
+	}
+	return nil
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +272,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
-		w.Header().Set("Content-Range", ras[0].ContentRange(fi.Size()))
+		w.Header().Set("Content-Range", contentRange(ras[0], fi.Size()))
 		w.Header().Set("Content-Length", strconv.FormatInt(ras[0].Length, 10))
 
 		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
@@ -237,8 +294,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		}
 		readDu = time.Since(readBegT)
 		status = http.StatusPartialContent
-		w.WriteHeader(status)
-		w.Write(b)
+		writeResponse(w, r, status, b)
 	} else {
 		readBegT := time.Now()
 		b, err := readfile(f, useDirectIO, 0, fi.Size())
@@ -255,8 +311,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		status = http.StatusOK
-		w.WriteHeader(status)
-		w.Write(b)
+		writeResponse(w, r, status, b)
 	}
 	log.Printf("[%s] %s elapsed:%v (fopen:%v/fread:%v)", r.RemoteAddr, statusText(status), time.Since(begT), openDu, readDu)
 }
@@ -307,7 +362,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
-		w.Header().Set("Content-Range", ras[0].ContentRange(f.Size()))
+		w.Header().Set("Content-Range", contentRange(ras[0], f.Size()))
 		w.Header().Set("Content-Length", strconv.FormatInt(ras[0].Length, 10))
 
 		if ims := r.Header.Get("If-Modified-Since"); ims != "" && ims == w.Header().Get("Last-Modified") {
@@ -359,6 +414,9 @@ func main() {
 	https := flag.Bool("https", false, "use https")
 	httpsCert := flag.String("https-cert", "cert.pem", "https cert file")
 	httpsKey := flag.String("https-key", "key.pem", "https key file")
+	chunked := flag.Bool("chunked-encoding", false, "GET response with chunked encoding")
+	chunkedN := flag.Int("ce-count", 3, "chunk count, with chunked-encoding option")
+	chunkedSleep := flag.Duration("ce-sleep", time.Second, "sleep time aftet writing chunk, with chunked-encoding option")
 	flag.Parse()
 
 	useDirectIO = *directio
@@ -373,6 +431,9 @@ func main() {
 	cacheControl = *cachecontrol
 	getDelay = *getD
 	headDelay = *headD
+	useChunkedEncoding = *chunked
+	ceChunkCount = *chunkedN
+	ceSleep = *chunkedSleep
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 

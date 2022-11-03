@@ -43,7 +43,22 @@ func main() {
 	}
 	defer in.Close()
 
-	buf := make([]byte, 1316)
+	buf := make([]byte, 188*7)
+	_, err = in.Read(buf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if buf[188] != 0x47 {
+		if buf[204] != 0x47 {
+			log.Fatal("sync byte mismatch")
+		}
+		buf = make([]byte, 204*7)
+	}
+	_, err = in.Seek(0, os.SEEK_SET)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	var start time.Time
 	totalWrited := int64(0)
 	for {

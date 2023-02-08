@@ -49,10 +49,13 @@ func main() {
 		log.Fatal(err)
 	}
 	if buf[188] != 0x47 {
-		if buf[204] != 0x47 {
+		if buf[204] == 0x47 {
+			buf = make([]byte, 204*7)
+		} else if buf[12] == 0x47 {
+			buf = make([]byte, 188*7+12)
+		} else {
 			log.Fatal("sync byte mismatch")
 		}
-		buf = make([]byte, 204*7)
 	}
 	_, err = in.Seek(0, os.SEEK_SET)
 	if err != nil {

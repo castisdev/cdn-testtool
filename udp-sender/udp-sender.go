@@ -11,9 +11,11 @@ import (
 func main() {
 	var file, addr string
 	var bw int64
+	var blockSz int
 	flag.StringVar(&file, "file", "a.dat", "file path to send")
 	flag.StringVar(&addr, "addr", "127.0.0.1:5000", "target udp address")
 	flag.Int64Var(&bw, "bandwidth", 0, "bandwidth, 0 means unlimited")
+	flag.IntVar(&blockSz, "block-size", 1316, "send block size")
 	flag.Parse()
 
 	srvAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -43,7 +45,7 @@ func main() {
 	}
 	defer in.Close()
 
-	buf := make([]byte, 1316)
+	buf := make([]byte, blockSz)
 	var start time.Time
 	totalWrited := int64(0)
 	for {

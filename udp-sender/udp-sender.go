@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -11,11 +12,9 @@ import (
 func main() {
 	var file, addr string
 	var bw int64
-	var blockSz int
 	flag.StringVar(&file, "file", "a.dat", "file path to send")
 	flag.StringVar(&addr, "addr", "127.0.0.1:5000", "target udp address")
 	flag.Int64Var(&bw, "bandwidth", 0, "bandwidth, 0 means unlimited")
-	flag.IntVar(&blockSz, "block-size", 1316, "send block size")
 	flag.Parse()
 
 	srvAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -45,7 +44,26 @@ func main() {
 	}
 	defer in.Close()
 
-	buf := make([]byte, blockSz)
+	buf := make([]byte, 188*7)
+	_, err = in.Read(buf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if buf[188] != 0x47 {
+		if buf[204] == 0x47 {
+			buf = make([]byte, 204*7)
+		} else if buf[12] == 0x47 {
+			buf = make([]byte, 188*7+12)
+		} else {
+			log.Fatal("sync byte mismatch")
+		}
+	}
+
+	_, err = in.Seek(0, io.SeekStart)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	var start time.Time
 	totalWrited := int64(0)
 	for {

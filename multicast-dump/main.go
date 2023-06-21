@@ -45,13 +45,15 @@ func main() {
 
 	pc := ipv4.NewPacketConn(conn)
 
-	ifs, err := net.Interfaces()
-	if err != nil {
-		log.Fatalf("failed to get interfaces, %v", err)
-	}
-	for _, ifi := range ifs {
-		if err := pc.JoinGroup(&ifi, ipv4addr); err != nil {
-			log.Fatal(err)
+	if ipv4addr.IP.IsMulticast() {
+		ifs, err := net.Interfaces()
+		if err != nil {
+			log.Fatalf("failed to get interfaces, %v", err)
+		}
+		for _, ifi := range ifs {
+			if err := pc.JoinGroup(&ifi, ipv4addr); err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 

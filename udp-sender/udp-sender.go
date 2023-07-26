@@ -10,10 +10,11 @@ import (
 
 func main() {
 	var file, addr string
-	var bw int64
+	var bw, offset int64
 	flag.StringVar(&file, "file", "a.dat", "file path to send")
 	flag.StringVar(&addr, "addr", "127.0.0.1:5000", "target udp address")
 	flag.Int64Var(&bw, "bandwidth", 0, "bandwidth, 0 means unlimited")
+	flag.Int64Var(&offset, "offset", 0, "seek offset")
 	flag.Parse()
 
 	srvAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -57,32 +58,34 @@ func main() {
 			log.Fatal("sync byte mismatch")
 		}
 	}
-	_, err = in.Seek(0, os.SEEK_SET)
+
+	if offset != 0 {
+		offset = offset / int64(len(buf)) * int64(len(buf))
+	}
+
+	_, err = in.Seek(offset, os.SEEK_SET)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var start time.Time
+	start := time.Now()
 	totalWrited := int64(0)
 	for {
 		n, err := in.Read(buf)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if start.IsZero() {
-			start = time.Now()
-		}
 		_, err = conn.WriteToUDP(buf[0:n], srvAddr)
 		if err != nil {
 			log.Fatal(err)
 		}
 		totalWrited += int64(n)
-		sleepNano := int64(1)
+		sleepMillie := int64(1)
 		if bw > 0 {
 			du := time.Since(start)
 			// n = (duNano + x) * bw / 8 / 1000000000
-			sleepNano = int64(totalWrited*8*1000000000)/bw - du.Nanoseconds()
+			sleepMillie = int64(totalWrited*8*1000)/bw - du.Milliseconds()
 		}
-		<-time.After(time.Duration(sleepNano) * time.Nanosecond)
+		<-time.After(time.Duration(sleepMillie) * time.Millisecond)
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -63,7 +64,7 @@ func main() {
 		offset = offset / int64(len(buf)) * int64(len(buf))
 	}
 
-	_, err = in.Seek(offset, os.SEEK_SET)
+	_, err = in.Seek(offset, io.SeekStart)
 	if err != nil {
 		log.Fatal(err)
 	}

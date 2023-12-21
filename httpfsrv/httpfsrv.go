@@ -228,7 +228,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if (useCastisOTU || useZooinOTU) && len(r.URL.Query()["session-id"]) == 0 {
-		id, _ := uuid.NewV4()
+		id := uuid.NewV4()
 		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+id.String())
 		str := fmt.Sprintf("session-id(%v) redirectURL : %v", len(r.URL.Query()["session-id"]), r.RequestURI)
 		writeHeader(w, r, http.StatusMovedPermanently, str)
@@ -326,7 +326,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if useZooinOTU && len(r.URL.Query()["session-id"]) == 0 {
-		id, _ := uuid.NewV4()
+		id := uuid.NewV4()
 		w.Header().Set("Location", "http://localhost:8888"+r.RequestURI+"?session-id="+id.String())
 		str := fmt.Sprintf("session-id(%v) redirectURL : %v", len(r.URL.Query()["session-id"]), r.RequestURI)
 		writeHeader(w, r, http.StatusMovedPermanently, str)

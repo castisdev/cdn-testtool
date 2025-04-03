@@ -12,10 +12,14 @@ import (
 func main() {
 	var file, addr string
 	var bw, offset int64
+	var repeat int
+	var blocksize int
 	flag.StringVar(&file, "file", "a.dat", "file path to send")
 	flag.StringVar(&addr, "addr", "127.0.0.1:5000", "target udp address")
 	flag.Int64Var(&bw, "bandwidth", 0, "bandwidth, 0 means unlimited")
 	flag.Int64Var(&offset, "offset", 0, "seek offset")
+	flag.IntVar(&blocksize, "block-size", 1316, "read / send block size, default 1316")
+	flag.IntVar(&repeat, "repeat", 0, "repeat reached eof")
 	flag.Parse()
 
 	srvAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -45,7 +49,7 @@ func main() {
 	}
 	defer in.Close()
 
-	buf := make([]byte, 188*7)
+	buf := make([]byte, blocksize)
 	_, err = in.Read(buf)
 	if err != nil {
 		log.Fatal(err)
@@ -74,6 +78,14 @@ func main() {
 	for {
 		n, err := in.Read(buf)
 		if err != nil {
+			// If EOF is reached, reset the file pointer to start again
+			if err == io.EOF && repeat != 0 {
+				_, err := in.Seek(0, io.SeekStart) // Reset to the start of the file
+				if err != nil {
+					log.Fatal(err)
+				}
+				continue // Continue to the next loop iteration
+			}
 			log.Fatal(err)
 		}
 		_, err = conn.WriteToUDP(buf[0:n], srvAddr)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -252,7 +253,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 	openDu := time.Since(openBegT)
 
-	if noLastModified == false {
+	if !noLastModified {
 		w.Header().Set("Last-Modified", fi.ModTime().UTC().Format(http.TimeFormat))
 	}
 
@@ -265,7 +266,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 	var readDu time.Duration
 	var status int
-	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
+	if ra := r.Header.Get("Range"); len(ra) > 0 && !disableRange {
 		ras, err := hutil.ParseRange(ra, fi.Size())
 		if err != nil {
 			writeHeader(w, r, http.StatusInternalServerError, "failed to parse range, "+err.Error())
@@ -340,14 +341,14 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 	f, err := os.Stat(fpath)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if os.IsNotExist(err) {
+		if os.IsNotExist(err) || errors.Is(err, syscall.ENOTDIR) {
 			status = http.StatusNotFound
 		}
 		writeHeader(w, r, status, "failed to stat, "+err.Error())
 		return
 	}
 
-	if noLastModified == false {
+	if !noLastModified {
 		w.Header().Set("Last-Modified", f.ModTime().UTC().Format(http.TimeFormat))
 	}
 
@@ -355,7 +356,7 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", cacheControl)
 	}
 
-	if ra := r.Header.Get("Range"); len(ra) > 0 && disableRange == false {
+	if ra := r.Header.Get("Range"); len(ra) > 0 && !disableRange {
 		ras, err := hutil.ParseRange(ra, f.Size())
 		if err != nil {
 			writeHeader(w, r, http.StatusInternalServerError, "failed to parse range, "+err.Error())
@@ -435,7 +436,7 @@ func main() {
 	ceChunkCount = *chunkedN
 	ceSleep = *chunkedSleep
 
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 
 	var rlimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)

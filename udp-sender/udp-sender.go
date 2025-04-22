@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"flag"
 	"io"
 	"log"
@@ -12,10 +13,13 @@ import (
 func main() {
 	var file, addr string
 	var bw, offset int64
+	var isRtp, repeat bool
 	flag.StringVar(&file, "file", "a.dat", "file path to send")
 	flag.StringVar(&addr, "addr", "127.0.0.1:5000", "target udp address")
 	flag.Int64Var(&bw, "bandwidth", 0, "bandwidth, 0 means unlimited")
 	flag.Int64Var(&offset, "offset", 0, "seek offset")
+	flag.BoolVar(&isRtp, "rtp", false, "rtp")
+	flag.BoolVar(&repeat, "repeat", false, "repeat reached eof")
 	flag.Parse()
 
 	srvAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -50,7 +54,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if buf[188] != 0x47 {
+	if buf[188] != 0x47 || buf[188*2] != 0x47 {
 		if buf[204] == 0x47 {
 			buf = make([]byte, 204*7)
 		} else if buf[12] == 0x47 {
@@ -69,14 +73,33 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if isRtp {
+		buf = make([]byte, len(buf)+12)
+	}
 	start := time.Now()
 	totalWrited := int64(0)
-	for {
-		n, err := in.Read(buf)
+	for seq := 0; true; seq++ {
+		ptr := buf
+		if isRtp {
+			ptr = buf[12:]
+		}
+		n, err := in.Read(ptr)
 		if err != nil {
+			if err == io.EOF && repeat {
+				_, err := in.Seek(0, io.SeekStart) // Reset to the start of the file
+				if err != nil {
+					log.Fatal(err)
+				}
+				continue // Continue to the next loop iteration
+			}
 			log.Fatal(err)
 		}
-		_, err = conn.WriteToUDP(buf[0:n], srvAddr)
+		ptr = buf
+		if isRtp {
+			binary.BigEndian.PutUint16(buf[2:4], uint16(seq))
+			n += 12
+		}
+		_, err = conn.WriteToUDP(ptr[0:n], srvAddr)
 		if err != nil {
 			log.Fatal(err)
 		}
